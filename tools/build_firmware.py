@@ -263,11 +263,11 @@ def build_one(board, args):
                IDF_CCACHE_ENABLE='0', IDF_VER='v6.1', ESP_IDF_VERSION='6.1.0')
     for key in ('PICO_PROJECT_VER', 'METALIO_PROJECT_VER', 'KIIKO_LOCAL_LATENCY', 'METALIO_LOCAL_LATENCY'):
         env.pop(key, None)
-    # 中文：idf.py 见到 MSYSTEM（Git Bash/MSYS 宿主）只打一行警告就返回 0，什么也不构建，
-    #       于是一次「成功」的空构建会一路走到导出步骤。删掉它，让 idf.py 真正跑起来。
-    # / idf.py only prints a warning and returns 0 when MSYSTEM is set (Git Bash/MSYS
-    #   hosts), building nothing, so an empty "successful" build reaches the export step.
-    #   Drop it so idf.py actually runs.
+    # 中文：Git Bash 下 MSYSTEM 会让 idf.py 把当前 shell 当作 MSYS/MinGW 环境并打警告；
+    #       清掉它可以避免这类噪声，也不让 MinGW 环境被误当成 MSYS 处理。
+    # / Under Git Bash, MSYSTEM makes idf.py treat the shell as an MSYS/MinGW
+    #   environment and warn about it. Dropping it keeps the build output clean and
+    #   stops a MinGW-flavoured environment from being handled as MSYS.
     env.pop('MSYSTEM', None)
     extra = [str(python.parent)]
     if args.tools:

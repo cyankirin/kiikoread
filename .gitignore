@@ -116,13 +116,19 @@ Desktop.ini
 *.suo       # Visual Studio Solution User Options
 *.sln.docstates # Visual Studio
 
-# Official binaries live in Releases; local packages are hydrated for website builds.
-/flash/firmware.bin
-/flash/bootloader.bin
-/flash/partitions.bin
-/flash/ota_data_initial.bin
-/flash/Pico-update.bin
-/flash/Pico-update-*.bin
+# 历史上这里曾用 /flash/firmware.bin、/flash/Pico-update-*.bin 等排除「官网构建时
+# 临时下载」的产物（上游认为正式 Bin 只放 Releases）。但本 fork 直接把固件包发布
+# 在 flash/ 下，且上面的 !/flash/... 白名单在 git 里「最后匹配优先」——这些补丁式
+# 忽略会反过来盖掉白名单，让新的 flash/Pico-update-*.bin 必须 add -f 才能入库。
+# 因此这里不再忽略，改为在白名单侧一次性放行站点发布物。
+# / These lines used to exclude artifacts hydrated for website builds (upstream keeps
+# official binaries in Releases only). This fork publishes its bundles under flash/,
+# and git applies the LAST matching pattern — so those ignores overrode the
+# !/flash/... whitelists above and forced git add -f for a new
+# flash/Pico-update-*.bin. Nothing is ignored here any more; the whitelists below
+# allow the published site artifacts in one place.
+!/flash/*.bin
+!/flash/releases/*/*.bin
 
 !flash/metalio/releases/*/bootloader.bin
 !flash/metalio/releases/*/partitions.bin
