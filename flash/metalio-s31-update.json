@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc106",
+  "version": "0.3.3-rc108",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "0.3.3-rc98",
-  "url": "https://wegooo-cell.github.io/read-pico-reader/Metalio-S31-update-0.3.3-rc106.bin",
-  "size": 4735072,
-  "sha256": "e27116c2990b41f2769cbb98729047b9207ff686decd7c263e1ff85922922ac7",
-  "notes": "1. 锁屏唤醒门禁与媒体/字体恢复修复\n2. 关机前光与充电边界修复\n3. 长文件名及EPUB封装兼容\n仅Metalio S31，保留数据。硬件关机后长按开机；长待机仍待实测。"
+  "url": "https://wegooo-cell.github.io/read-pico-reader/Metalio-S31-update-0.3.3-rc108.bin",
+  "size": 4993872,
+  "sha256": "936ab26bc025190ce0914a196a007cd996ae6ca2908d3da1f1e984ae9be419b8",
+  "notes": "1. 底层、供电睡眠与阅读刷新采用已合并版本\n2. 支持WebP封面与插图\n3. 更新引导、语言、文件和书架管理\n4. 液态玻璃书架恢复此前样式\n仅S31；保留设置，rc107原版可回退。"
 }

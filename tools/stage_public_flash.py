@@ -87,7 +87,7 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
     licenses = {
         ROOT / "licenses/Apache-2.0.txt": "Apache-2.0.txt",
         ROOT / "licenses/kiikoread-Personal-Study-1.0.txt": "kiikoread-Personal-Study-1.0.txt",
-        FLASH / "licenses/LUCIDE-ISC.txt": "LUCIDE-ISC.txt",
+        ROOT / "licenses/LUCIDE-ISC.txt": "LUCIDE-ISC.txt",
         ROOT / "components/jpegdec/LICENSE": "JPEGDEC-APACHE-2.0.txt",
         ROOT / "licenses/LGPL-3.0.txt": "LGPL-3.0.txt",
         ROOT / "licenses/GPL-3.0.txt": "GPL-3.0.txt",
@@ -97,6 +97,8 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
         ROOT / "licenses/AnimateIcons-MIT.txt": "AnimateIcons-MIT.txt",
         ROOT / "licenses/FreeInk-SDK-MIT.txt": "FREEINK-SDK-MIT.txt",
         ROOT / "licenses/Metalio-MIT.txt": "METALIO-MIT.txt",
+        ROOT / "licenses/WebP-BSD-3-Clause.txt": "WebP-BSD-3-Clause.txt",
+        ROOT / "licenses/lowzag-MIT.txt": "lowzag-MIT.txt",
     }
     (output / "licenses").mkdir(exist_ok=True)
     for source, name in licenses.items():
