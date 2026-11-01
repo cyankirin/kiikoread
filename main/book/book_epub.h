@@ -42,7 +42,7 @@ esp_err_t book_epub_load_anchor(book_epub_t *book, size_t index, const char *anc
                                  size_t *anchor_offset, html_text_t *out);
 esp_err_t book_epub_load_target(book_epub_t *book, size_t index, const char *anchor,
                                  size_t source_offset, size_t *text_offset, html_text_t *out);
-/// 加载章内 JPEG/PNG；仅允许 ZIP 内相对路径，调用方释放数据。/ Load an in-book JPEG/PNG from a relative path; caller frees data.
+/// 加载章内 JPEG/PNG/WebP；仅允许 ZIP 内相对路径，调用方释放数据。/ Load an in-book JPEG/PNG/WebP from a relative path; caller frees data.
 esp_err_t book_epub_image(book_epub_t *book, size_t chapter, const char *src, uint8_t **data, size_t *size, bool *png);
 /// spine 原始 HTML 未压缩字节总量，不等于 EPUB 文件大小。/ Total uncompressed source HTML bytes in the spine, not EPUB file size.
 uint32_t book_epub_total_bytes(const book_epub_t *book);
@@ -64,3 +64,10 @@ esp_err_t book_epub_metadata_cached(const char *path, char *title, size_t title_
 /// PNG先读32字节，JPEG按需扩头；SVG/晚帧头保留有界完整回退。
 /// Probe PNG with32 bytes and grow JPEG headers on demand; retain bounded full fallback for SVG/late frames.
 esp_err_t book_epub_image_dimensions(book_epub_t *book, size_t chapter, const char *src, unsigned *width, unsigned *height);
+#if KIIKO_BOARD_METALIO47
+
+esp_err_t book_epub_suspend_io(book_epub_t *book);
+esp_err_t book_epub_resume_io(book_epub_t *book);
+int book_epub_prefetch_step(book_epub_t *book,size_t chapter);
+#else
+#endif

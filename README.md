@@ -8,13 +8,13 @@ Official firmware binaries are stored in [GitHub Releases](https://github.com/we
 
 [简体中文](README.zh-CN.md) · [日本語](README.ja-JP.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-## 🅰 Added in this fork: Anki deck study (0.3.3-rc102.01)
+## 🅰 Added in this fork: Anki deck study (0.3.3-rc103.01)
 
-This fork ports Anki deck study onto official **rc102**: import an `.apkg`, review with Anki scheduling on the device, with lettered single/multi-choice options, inverted wrong answers, and layout tuned for the font size and the e-ink panel.
+This fork ports Anki deck study onto official **rc103**: import an `.apkg`, review with Anki scheduling on the device, with lettered single/multi-choice options, inverted wrong answers, and layout tuned for the font size and the e-ink panel. rc103 replaced the single-board tree with `boards/<board>/` plus `-DKIIKO_BOARD=pico|metalio47`; the Anki and font work is carried over to the Pico board view, and this fork builds Pico only.
 
-- **Firmware**: the binary ships with the repository — [`firmware/Read_Pico-0.3.3-rc102.01.bin`](firmware/Read_Pico-0.3.3-rc102.01.bin) is the source you can use today (app partition only, flash at `0x10000`). If this repository's **Releases** page publishes the matching version, prefer the release asset (it carries the release notes); to roll back, use [`firmware/Read_Pico-0.3.3-rc100.02.bin`](firmware/Read_Pico-0.3.3-rc100.02.bin).
-- **Flashing guide (Chinese)**: [docs/anki-flash-guide.md](docs/anki-flash-guide.md) — back up settings first, full-flash official rc102, then this app image at `0x10000`, factory reset, restore settings
-- **Change log**: [docs/CHANGELOG.md](docs/CHANGELOG.md), sections `0.3.3-rc99.01` … `0.3.3-rc102.01`
+- **Firmware**: the binary ships with the repository — [`firmware/Read_Pico-0.3.3-rc103.01.bin`](firmware/Read_Pico-0.3.3-rc103.01.bin) is the source you can use today (app partition only, flash at `0x10000`). If this repository's **Releases** page publishes the matching version, prefer the release asset (it carries the release notes); to roll back, use [`firmware/Read_Pico-0.3.3-rc102.01.bin`](firmware/Read_Pico-0.3.3-rc102.01.bin) or [`firmware/Read_Pico-0.3.3-rc100.02.bin`](firmware/Read_Pico-0.3.3-rc100.02.bin).
+- **Flashing guide (Chinese)**: [docs/anki-flash-guide.md](docs/anki-flash-guide.md) — back up settings first, full-flash official rc103 (rc100/rc102 work identically: the partition table is unchanged), then this app image at `0x10000`, factory reset, restore settings
+- **Change log**: [docs/CHANGELOG.md](docs/CHANGELOG.md), sections `0.3.3-rc99.01` … `0.3.3-rc103.01`
 
 
 An independent reading firmware with publicly available source for the **MindReset RDP-G01-W** ESP32-S3 e-paper board. It is based on [MindReset's official demo firmware](https://github.com/MindReset/read_pico_firmware), but is **not an official MindReset release**. Licenses apply by scope as described above.
@@ -81,14 +81,14 @@ kiikoread checks the image project, version, size, and headers before writing th
 
 ## Build from source
 
-Use ESP-IDF **v6.1** for ESP32-S3:
+The repository keeps one shared `main/` and `components/` source tree; `boards/<board>/` supplies the hardware backend, sdkconfig, partition table and dependency lock. Select the device with `--board pico|metalio47` and a matching ESP-IDF **v6.1** SDK:
 
 ```sh
-idf.py set-target esp32s3
-idf.py build
+python3 tools/build_firmware.py --board pico --python /path/to/idf-python/bin/python
+python3 tools/build_firmware.py --board metalio47 --python /path/to/idf-python/bin/python
 ```
 
-The board-specific flash and PSRAM timing is in `sdkconfig.defaults`. `sdkconfig.ci` is for compile checks only. Follow the [MindReset hardware documentation](https://dot.mindreset.tech/docs/read_0) for the board. A prebuilt firmware image is provided for the RDP-G01-W only.
+Pico is ESP32-S3 (Xtensa), Metalio is ESP32-S31 (RISC-V); each needs its own SDK/toolchain, config and output directory, and the two images are never interchangeable. On Windows the wrapper is `tools\build_board.ps1 -Board pico|metalio47`. See [docs/BOARDS.md](docs/BOARDS.md) for the full build matrix, partition tables and flash offsets. A prebuilt firmware image is provided for the RDP-G01-W only.
 
 ## Books and fonts
 
@@ -151,3 +151,11 @@ Settings → Personalization → Shelf style adds a four-book list with uniform 
 Dark two-pixel frames and separators remain visible in fast/ripple modes. PIN entry paints the complete screen once, without a second backdrop stage. PIN input updates only the inner circular feedback and password dots with local BW differences, without rerendering artwork or glyphs. Delete removes one digit; Cancel keeps the device locked. Collage covers gain soft shadows and thinner white typography outlines, with cache invalidation. Wallpaper, ticket and collage images use physical 16-level grayscale with ordered dithering of 256-level source brightness, rather than native 256-level hardware.
 
 Reader Font Settings → Weight uses a minus/plus capsule and an active-face preview; each step adjusts 1/16-pixel coverage from −2 to +2 pixels (65 levels), preserving legacy settings. Native weight is unchanged; other levels preserve advances and aspect ratio for static imported and embedded book fonts. Reader weight does not alter system pages and is included in configuration backups.
+
+## Latest interface updates (unreleased, both boards)
+
+Fresh/reset profiles enter language, Wi-Fi and font setup; existing configured profiles skip it on upgrade. Chinese/English applies across the system UI and remains selectable in Settings. Book content, filenames and user input retain their original text. Setup imports TTF/OTF fonts through USB storage or QR-based Wi-Fi transfer, rescans the card and offers a paged font picker. It applies the selected font to both system and reading. A connected Wi-Fi network starts background time synchronization; failed saves keep setup open.
+
+Files adds recursive Chinese/pinyin/initials/English search, list/grid views, persistent multiselection, destination-folder moves and confirmed deletion. Moves never overwrite existing targets and failed entries stay selected for retry. Shelf management supports name, last-read and first-added ordering in either direction; pre-existing books register on their first upgraded scan. Wi-Fi remembers eight profiles and marks saved networks; enabling Bluetooth attempts to reconnect the last successfully used paired device.
+
+New books open in standard mode with status/header/tools and no chapter/progress footer. A centre tap toggles fullscreen independently of the saved immersive style. Fullscreen with immersion off shows the title and chapter/count/percentage footer; immersion on fills the page with text and keeps only a bottom 3px progress line. Turns retain the selected mode, and mode changes preserve the reading anchor. Metadata updates locally after idle. Drivers, power/sleep and reader waveforms follow PR #59; manual and periodic cleanup remain available. Both boards retain separate hardware backends.

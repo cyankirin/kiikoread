@@ -2,18 +2,45 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.22)
 
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/board.cmake")
+set(KIIKO_BOARD "${KIIKO_BOARD}" CACHE STRING "Firmware device: pico or metalio47")
+set_property(CACHE KIIKO_BOARD PROPERTY STRINGS pico metalio47)
+if(DEFINED IDF_TARGET AND NOT IDF_TARGET STREQUAL KIIKO_IDF_TARGET)
+    message(FATAL_ERROR "${KIIKO_BOARD} requires ${KIIKO_IDF_TARGET}; use a separate build/config directory")
+endif()
+if(DEFINED ENV{IDF_TARGET} AND NOT "$ENV{IDF_TARGET}" STREQUAL "${KIIKO_IDF_TARGET}")
+    message(FATAL_ERROR "IDF_TARGET environment conflicts with ${KIIKO_BOARD}")
+endif()
+set(IDF_TARGET "${KIIKO_IDF_TARGET}" CACHE STRING "Selected chip")
+set(ENV{KIIKO_BOARD} "${KIIKO_BOARD}")
+if(NOT DEFINED SDKCONFIG_DEFAULTS)
+    set(SDKCONFIG_DEFAULTS "${KIIKO_BOARD_ROOT}/sdkconfig.defaults")
+endif()
+# S31专用本地波形实验；板级与正式构建开关隔离。/ S31-only local waveform experiment, isolated from other boards and release defaults.
+option(METALIO_DU14_EXPERIMENT "Local S31 vendor DU14 black/white experiment" OFF)
+if(METALIO_DU14_EXPERIMENT AND NOT KIIKO_BOARD_METALIO47)
+    message(FATAL_ERROR "DU14 experiment requires Metalio S31")
+endif()
+add_compile_definitions(KIIKO_BOARD_METALIO47=${KIIKO_BOARD_METALIO47})
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
 idf_build_set_property(MINIMAL_BUILD ON)
 
 # 本地测试沿用当前正式版号；仅正式发布或明确的 OTA 验证指定新版本。
 # Local tests keep the current release version; override only for publication or explicit OTA validation.
-if(DEFINED ENV{PICO_PROJECT_VER} AND NOT "$ENV{PICO_PROJECT_VER}" STREQUAL "")
+if(DEFINED ENV{KIIKO_PROJECT_VER} AND NOT "$ENV{KIIKO_PROJECT_VER}" STREQUAL "")
+    set(PROJECT_VER "$ENV{KIIKO_PROJECT_VER}")
+elseif(DEFINED ENV{PICO_PROJECT_VER} AND NOT "$ENV{PICO_PROJECT_VER}" STREQUAL "")
     set(PROJECT_VER "$ENV{PICO_PROJECT_VER}")
 else()
-    set(PROJECT_VER "0.3.3-rc102.01")
+    # 默认版号来自板级描述 boards/<board>/board.json 的 version 字段（本分支为
+    # 0.3.3-rc103.01）；上面的环境变量只用于一次性的正式发布或 OTA 验证。
+    # / The default comes from the board description's version field
+    # (boards/<board>/board.json, 0.3.3-rc103.01 on this branch); the
+    # environment variables above cover one-off releases and OTA validation only.
+    set(PROJECT_VER "${KIIKO_PROJECT_VER}")
 endif()
-project(Read_Pico)
+project(${KIIKO_PROJECT_NAME})
 
 # 固件描述时间统一为 UTC，与概览页标识一致；保留已有编译缓存启动器。
 # Compile app-description timestamps in UTC to match Overview; preserve any compiler-cache launcher.
@@ -60,24 +87,29 @@ if(NOT CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES)
     idf_build_get_property(elf_dir EXECUTABLE_DIR)
     idf_component_get_property(esptool_py_cmd esptool_py ESPTOOLPY_CMD)
     idf_component_get_property(esptool_elf2image_args esptool_py ESPTOOL_PY_ELF2IMAGE_ARGS)
-    add_custom_target(anki_versioned_bin ALL
+    # 脚本放在 cmake/ 而不是 tools/：板级构建视图（tools/board_source_view.py）只为
+    # 设备构建复制源码，不复制 tools/，放进 tools/ 的脚本在构建视图里不存在。
+    # / The script lives in cmake/ rather than tools/: the per-board build view
+    # (tools/board_source_view.py) copies sources only, never tools/, so a script
+    # kept there would be missing inside the view.
+    add_custom_target(versioned_firmware_bin ALL
         COMMAND ${CMAKE_COMMAND}
             -D "BIN=${build_dir}/${project_bin}"
             -D "ELF=${elf_dir}/${elf_name}.elf"
             -D "ESPTOOLPY_CMD=${esptool_py_cmd}"
             -D "ELF2IMAGE_ARGS=${esptool_elf2image_args}"
-            -D "VERSIONED=${build_dir}/Read_Pico-${PROJECT_VER}.bin"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/tools/stage_versioned_bin.cmake"
+            -D "VERSIONED=${build_dir}/${KIIKO_PROJECT_NAME}-${PROJECT_VER}.bin"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/stage_versioned_bin.cmake"
         DEPENDS gen_project_binary
-        COMMENT "Staging versioned firmware image: Read_Pico-${PROJECT_VER}.bin"
+        COMMENT "Staging versioned firmware image: ${KIIKO_PROJECT_NAME}-${PROJECT_VER}.bin"
         VERBATIM
     )
     # 分区大小核对读到镜像文件；排在本目标之后，缺失重建先发生再核对。
     # / The partition size check reads the image; order it after this target so a
     # missing image is regenerated before the check runs.
     if(TARGET app_check_size)
-        add_dependencies(app_check_size anki_versioned_bin)
+        add_dependencies(app_check_size versioned_firmware_bin)
     endif()
     set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" APPEND PROPERTY ADDITIONAL_CLEAN_FILES
-        "${build_dir}/Read_Pico-${PROJECT_VER}.bin")
+        "${build_dir}/${KIIKO_PROJECT_NAME}-${PROJECT_VER}.bin")
 endif()

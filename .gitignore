@@ -128,3 +128,16 @@ Desktop.ini
 !flash/metalio/releases/*/partitions.bin
 !flash/metalio/releases/*/ota_data_initial.bin
 sdkconfig.bak*
+sdkconfig.bak-*
+# 每块板各一份 sdkconfig（board.cmake 里写的是 sdkconfig.<board>）。
+# / One sdkconfig per board; board.cmake points at sdkconfig.<board>.
+/sdkconfig.pico
+/sdkconfig.metalio47
+/build-*/
+# 注意：上游在私有构建仓库里用 /flash/ 忽略整个站点；本 fork 在 flash/ 下发布
+# 固件包，已在上方用 !/flash/... 白名单逐条放行。整目录忽略会让白名单全部失效
+# （git 不会在已排除的目录里再包含文件），故此处不采用该行。
+# Note: upstream's private build repo ignores the whole /flash/ site. This fork
+# publishes firmware bundles under flash/ and whitelists them file by file
+# above; excluding the directory would void every one of those negations (git
+# never re-includes inside an excluded directory), so that line is not taken.

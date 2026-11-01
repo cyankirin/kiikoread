@@ -1,4 +1,12 @@
+#if defined(KIIKO_LOCAL_LATENCY) || KIIKO_BOARD_METALIO47
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+#include "ui_locale_format.h"
+#endif
+#include "metalio_hw.h"
+#endif
 #include "esp_timer.h"
+#endif
 #ifdef KIIKO_LOCAL_LATENCY
 #include "esp_log.h"
 #endif
@@ -39,6 +47,10 @@
 #include "boot_state.h"
 #include "app_registry.h"
 #include "book_cover.h"
+#if KIIKO_BOARD_METALIO47
+#include "metalio_cover_cache.h"
+#else
+#endif
 #include "book_cover_jobs.h"
 #include "ui_image_dither.h"
 #include "book_epub.h"
@@ -65,6 +77,7 @@
 #include "ttf_font.h"
 #include "ui_gesture.h"
 #include "ui_kit.h"
+#include "ui_root_style.h"
 #include "ui_nav.h"
 
 typedef struct {
@@ -80,7 +93,7 @@ typedef struct {
 } home_book_t;
 
 // 首页冷数据不参与DMA或中断，在PSRAM保留原静态生命周期和零初始化。
-// Home cold data is never used by DMA/ISRs; keep its static lifetime and zero initialization in PSRAM.
+// Home cold data is never used by DMA/ISRs; retain static lifetime and zero initialization in PSRAM.
 static EXT_RAM_BSS_ATTR home_book_t s_current, s_recent[6];
 typedef struct {
     char path[BOOK_STORE_PATH_MAX];
@@ -110,6 +123,7 @@ static struct tm s_date;
 static enum { HOME_ROOT,HOME_COMPONENT,HOME_GOAL,HOME_TIME } s_view;
 static app_home_component_t s_component_browse;
 static bool s_component_pending;
+static EpdRect s_component_dirty;
 static const app_home_component_t s_components[]={APP_HOME_MOON,APP_HOME_CLOCK,APP_HOME_KEHAI,APP_HOME_CAT,APP_HOME_DALI,APP_HOME_ASTERISK,APP_HOME_HOUSE,APP_HOME_FOLDER};
 #define HOME_COMPONENT_OPTIONS (sizeof(s_components)/sizeof(s_components[0]))
 static bool s_time_pending;
@@ -135,13 +149,6 @@ static EpdRect s_pressed;
 static bool s_press_pending;
 static EpdRect continue_card_rect(void) { return (EpdRect){36,184,612,378}; }
 static EpdRect continue_card_hit_rect(void) { return (EpdRect){24,172,636,402}; }
-// 顶栏 Anki 入口：位于「首页」标题（右缘约 x150）与阅读分钟（右对齐
-// x490）之间的空带，右边界 ≤400 避开分钟文本，y 与圆环/头像中线一致。
-// / Top-bar Anki entry: sits in the empty band between the "首页" title
-// (right edge ~x150) and the reading minutes (right-aligned at x490),
-// right edge ≤400 clears the minutes text, y matches the ring/avatar
-// midline.
-static EpdRect anki_pill_rect(void) { return (EpdRect){210,88,160,60}; }
 static bool continue_card_pressed(void) { return s_press_pending && s_pressed.height == 378; }
 static EpdRect control_feedback_area(EpdRect control) {
     return control.height == 378 ? (EpdRect){56,270,184,252} : control;
@@ -150,51 +157,22 @@ static bool s_reading_days_valid;
 static bool s_home_force_full_once;
 static uint32_t s_cached_progress_revision=UINT32_MAX;
 static uint8_t *s_clock_base_cache;
-static size_t s_clock_cache_bytes;
 static bool s_clock_base_attempted;
+#if KIIKO_BOARD_METALIO47
 static int64_t s_component_warm_after_ms;
-static EpdRect s_component_dirty;
+#endif
 void app_home_release_clock_cache(void) {
     ui_home_clock_bind_base_cache(NULL,0);
     free(s_clock_base_cache);s_clock_base_cache=NULL;s_clock_base_attempted=false;
-    s_clock_cache_bytes=0;
 }
 static void clock_base_prepare(void){
     app_home_component_t component=s_view==HOME_COMPONENT?s_component_browse:app_settings_home_component();
     bool eligible=component!=APP_HOME_FOLDER;
-#if KIIKO_BOARD_METALIO47
-    const size_t bytes=UI_HOME_CLOCK_BASE_CACHE_BYTES;
-#else
-    const size_t bytes=s_view==HOME_COMPONENT?UI_HOME_CLOCK_BASE_CACHE_BYTES:UI_HOME_CLOCK_LIVE_CACHE_BYTES;
-#endif
-    if(s_clock_cache_bytes>=bytes||s_clock_base_attempted||!eligible)return;
+    if(s_clock_base_cache||s_clock_base_attempted||!eligible)return;
     s_clock_base_attempted=true;
-    if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<bytes+2u*1024u*1024u)return;
-    uint8_t *next=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    if(!next)return;
-    ui_home_clock_bind_base_cache(next,bytes);
-    free(s_clock_base_cache);s_clock_base_cache=next;s_clock_cache_bytes=bytes;
-}
-
-// PSRAM 余量低于该值时暂停首页时钟/日历组件，先把内存还给阅读解析；余量恢复
-// 后下一帧自然恢复。/ Below this much free PSRAM the home clock/calendar
-// widgets pause so parsing gets the memory back; they return on their own
-// once the margin recovers. 512KB：一组组件加表盘底图约两百多 KB，留一倍
-// 余量给解析器的临时分配。/ 512KB: a widget set plus clock base runs a little
-// over 200KB, leaving a 2x margin for parser scratch allocations.
-#define HOME_WIDGET_PSRAM_MIN (512u * 1024u)
-// 组件暂停态；翻转时整页重画，避免表盘残影盖在提示文字上。/ The widget pause
-// state; a flip repaints the page so clock remnants never linger over the
-// notice text.
-static bool s_widgets_paused;
-// 入口查一次，不在各绘制函数里反复 sys 调用。/ Checked once per entry, never
-// per draw call.
-static bool home_widgets_paused(void) {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_free_size(MALLOC_CAP_SPIRAM)<HOME_WIDGET_PSRAM_MIN;
-#else
-    return false; // 宿主没有 PSRAM 余量概念 / the host has no PSRAM margin
-#endif
+    if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<UI_HOME_CLOCK_BASE_CACHE_BYTES+2u*1024u*1024u)return;
+    s_clock_base_cache=heap_caps_malloc(UI_HOME_CLOCK_BASE_CACHE_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    ui_home_clock_bind_base_cache(s_clock_base_cache,s_clock_base_cache?UI_HOME_CLOCK_BASE_CACHE_BYTES:0);
 }
 
 static home_book_t *book_at(int index);
@@ -475,7 +453,15 @@ static const char *component_name(app_home_component_t component) {return compon
 static EpdRect time_clock_bounds(void) {return(EpdRect){122,275,460,503};}
 static EpdRect component_clock_bounds(void){return s_view==HOME_COMPONENT?(EpdRect){141,294,420,460}:(EpdRect){24,640,320,350};}
 static EpdRect component_clock_graphics(void){return s_view==HOME_COMPONENT?component_clock_bounds():(EpdRect){24,640,320,326};}
-static bool visible_motion_clock(void){return s_view==HOME_ROOT&&ui_home_clock_has_motion(clock_style(app_settings_home_component()));}
+static bool visible_motion_clock(void){
+    return(s_view==HOME_ROOT&&ui_home_clock_has_motion(clock_style(app_settings_home_component())))
+#if KIIKO_BOARD_METALIO47
+        ;
+#else
+        ||(s_view==HOME_COMPONENT&&ui_home_clock_has_motion(clock_style(s_component_browse)));
+#endif
+}
+#if KIIKO_BOARD_METALIO47
 static void component_prepare_neighbor(app_ctx_t *ctx) {
     if(s_view!=HOME_COMPONENT||s_component_pending||!s_clock_base_cache||ctx->consumed||
        (ctx->touch&&ctx->touch->touched)||ctx->now_ms<s_component_warm_after_ms)return;
@@ -484,19 +470,13 @@ static void component_prepare_neighbor(app_ctx_t *ctx) {
     s_component_warm_after_ms=ctx->now_ms+600;
     EpdRect bounds=component_clock_bounds();bool binary=app_settings_main_fast_refresh();
     unsigned current=component_index(s_component_browse);
-#if KIIKO_BOARD_METALIO47
-    const unsigned limit=HOME_COMPONENT_OPTIONS;
-#else
-    const unsigned limit=3;
-#endif
-    for(unsigned step=1;step<limit;++step) {
+    for(unsigned step=1;step<HOME_COMPONENT_OPTIONS;++step) {
         unsigned offset=(step+1)/2;
         unsigned index=(current+HOME_COMPONENT_OPTIONS+(step&1?offset:HOME_COMPONENT_OPTIONS-offset))%HOME_COMPONENT_OPTIONS;
         app_home_component_t component=s_components[index];
         if(component==APP_HOME_FOLDER)continue;
         ui_home_clock_style_t style=clock_style(component);
         if(ui_home_clock_preview_cached(bounds,binary,style))continue;
-#if KIIKO_BOARD_METALIO47
         const size_t bytes=(size_t)epd_width()*epd_height()/2;
         if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<bytes+2u*1024u*1024u)return;
         uint8_t *scratch=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
@@ -504,12 +484,9 @@ static void component_prepare_neighbor(app_ctx_t *ctx) {
         ui_fill_rect_fast(bounds,0xff,scratch);
         ui_home_clock_preview_draw(scratch,bounds,binary,style);
         free(scratch);return;
-#else
-        if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<2u*1024u*1024u)return;
-        (void)ui_home_clock_preview_prepare(bounds,binary,style);return;
-#endif
     }
 }
+#endif
 static void refresh_days(void) {
     s_reading_days_valid=date_now(&s_date)&&book_ticket_month_days(s_date.tm_year+1900,s_date.tm_mon+1,s_reading_days);
     if(!s_reading_days_valid)memset(s_reading_days,0,sizeof(s_reading_days));
@@ -647,33 +624,23 @@ static void render_root(uint8_t *fb) {
 #else
 #define HOME_STAGE(name) do {} while(0)
 #endif
-    // PSRAM 紧张时首页组件整体暂停：入口查一次余量，低于阈值即跳过组件绘制
-    // 并释放表盘底图，余量恢复后下一帧自然恢复。/ Tight PSRAM pauses the
-    // home widgets: the margin is checked once here, and below the threshold
-    // widget drawing is skipped and the clock base released; they return on
-    // their own once the margin recovers.
-    bool widgets_paused=home_widgets_paused();
     ui_nav_status(fb);ui_text(fb,36,91,52,"首页",EPD_DRAW_ALIGN_LEFT,false);
-    // 顶栏 Anki 入口：圆角矩形 + 三像素边线沿用页面灰阶，按下时底色反转，
-    // 描边高亮由 render() 的 s_pressed 统一叠加。/ Top-bar Anki entry:
-    // rounded rect plus 3px rules in page grays; the fill inverts while
-    // pressed and the outline highlight is added by render() via s_pressed.
-    bool anki_pressed=s_press_pending&&s_pressed.x==210&&s_pressed.y==88;
-    ui_fill_round_rect(fb,anki_pill_rect(),28,anki_pressed?0xe0:0xf0);
-    home_frame(fb,anki_pill_rect(),28);
-    label(fb,290,118,26,"Anki 学习",EPD_DRAW_ALIGN_CENTER,anki_pressed?0x20:0x30);
     char value[80];unsigned seconds=today_seconds();
     snprintf(value,sizeof(value),"%u 分钟",seconds/60);fit(value,24,180);label(fb,490,118,24,value,EPD_DRAW_ALIGN_RIGHT,0x30);
     ring(fb,540,118,30,7,seconds,app_settings_home_goal_minutes()*60);
     if(s_avatar_ready)ui_wallpaper_draw_avatar(fb,s_avatar,(EpdRect){588,88,60,60},30);
     else {epd_fill_circle(618,118,30,0x30,fb);label(fb,618,118,30,"K",EPD_DRAW_ALIGN_CENTER,0xff);}
     HOME_STAGE("header");
-    const uint8_t card_gray=app_settings_main_fast_refresh()?0xff:0xee;
-    ui_fill_round_rect(fb,(EpdRect){36,184,612,378},28,card_gray);
+#if KIIKO_BOARD_METALIO47
+    const uint8_t card_gray=0xff;
+#else
+    const uint8_t card_gray=0xff;
+#endif
+    ui_root_card(fb,(EpdRect){36,184,612,378},28);
     home_frame(fb,(EpdRect){36,184,612,378},28);
     for(int side=0;side<2;++side) {
-        int x=side?648:36;epd_fill_circle(x,252,14,0xff,fb);circle_frame(fb,x,252,14);
-        ui_fill_rect_fast((EpdRect){side?x:0,237,side?36:36,30},0xff,fb);
+        int x=side?648:36;epd_fill_circle(x,252,14,UI_ROOT_GRAY,fb);circle_frame(fb,x,252,14);
+        ui_fill_rect_fast((EpdRect){side?x:0,237,side?36:36,30},UI_ROOT_GRAY,fb);
     }
     label_on(fb,60,222,24,"最近阅读",EPD_DRAW_ALIGN_LEFT,0x60,card_gray);
     if(s_excerpt[0]) {
@@ -698,16 +665,7 @@ static void render_root(uint8_t *fb) {
     } else label_on(fb,342,410,23,"打开一本书后，会在这里继续阅读",EPD_DRAW_ALIGN_CENTER,0x60,card_gray);
     HOME_STAGE("card_body");
     ui_draw_separator(fb,606,36,612,0x50);
-    // 只门控时钟/日历组件区：「继续阅读」卡、题头（含今日闭环圆环）与闭环
-    // 说明不受影响。/ Only the clock/calendar widget area is gated: the
-    // resume card, the header (today's closed-loop ring included) and the
-    // closed-loop caption are untouched.
-    if(widgets_paused) {
-        // 释放可重建的表盘底图，把 PSRAM 还给阅读解析。/ Release the
-        // rebuildable clock base so parsing gets that PSRAM back.
-        app_home_release_clock_cache();
-        label(fb,184,800,22,"内存紧张，首页组件已暂停",EPD_DRAW_ALIGN_CENTER,0x60);
-    } else if(app_settings_home_component()==APP_HOME_FOLDER) {
+    if(app_settings_home_component()==APP_HOME_FOLDER) {
         ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){24,604,320,350});
         label(fb,184,985,22,"最近阅读",EPD_DRAW_ALIGN_CENTER,0x50);
     } else {
@@ -715,19 +673,15 @@ static void render_root(uint8_t *fb) {
         label(fb,184,985,22,component_name(app_settings_home_component()),EPD_DRAW_ALIGN_CENTER,0x50);
     }
     HOME_STAGE("component");
-    if(!widgets_paused) {
-        // 日历随组件一起暂停，右侧留白。/ The calendar pauses with the widget,
-        // leaving the right side blank.
-        if(s_reading_days_valid) {
-            static const char *const wd[]={"星期日","星期一","星期二","星期三","星期四","星期五","星期六"};
-            snprintf(value,sizeof(value),"%d月%d日",s_date.tm_mon+1,s_date.tm_mday);
-            label(fb,354,665,30,value,EPD_DRAW_ALIGN_LEFT,0);
-            label(fb,642,665,24,wd[s_date.tm_wday],EPD_DRAW_ALIGN_RIGHT,0x50);
-            int start=(s_date.tm_wday+7-(s_date.tm_mday-1)%7)%7;
-            int rows=(start+month_length(&s_date)+6)/7;
-            calendar(fb,375,754,42,rows==6?38:48,26,app_settings_home_goal_minutes()*60);
-        } else label(fb,496,754,22,"请先设置日期与时间",EPD_DRAW_ALIGN_CENTER,0x60);
-    }
+    if(s_reading_days_valid) {
+        static const char *const wd[]={"星期日","星期一","星期二","星期三","星期四","星期五","星期六"};
+        snprintf(value,sizeof(value),"%d月%d日",s_date.tm_mon+1,s_date.tm_mday);
+        label(fb,354,665,30,value,EPD_DRAW_ALIGN_LEFT,0);
+        label(fb,642,665,24,wd[s_date.tm_wday],EPD_DRAW_ALIGN_RIGHT,0x50);
+        int start=(s_date.tm_wday+7-(s_date.tm_mday-1)%7)%7;
+        int rows=(start+month_length(&s_date)+6)/7;
+        calendar(fb,375,754,42,rows==6?38:48,26,app_settings_home_goal_minutes()*60);
+    } else label(fb,496,754,22,"请先设置日期与时间",EPD_DRAW_ALIGN_CENTER,0x60);
     label(fb,642,985,22,"· 已闭环",EPD_DRAW_ALIGN_RIGHT,0x50);
     HOME_STAGE("calendar");
     ui_nav_draw(fb,0);
@@ -772,8 +726,11 @@ static void render_component_controls(uint8_t *fb) {
 static void render_components_body(uint8_t *fb) {
     if(s_component_browse==APP_HOME_FOLDER)ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){132,282,420,459});
     else {
-        clock_base_prepare();
+#if KIIKO_BOARD_METALIO47
         ui_home_clock_preview_draw(fb,(EpdRect){141,294,420,460},app_settings_main_fast_refresh(),clock_style(s_component_browse));
+#else
+        clock_draw_region(fb,(EpdRect){141,294,420,460},&s_date,app_settings_main_fast_refresh(),clock_style(s_component_browse),(EpdRect){141,294,420,460},s_widget_phase);
+#endif
     }
     label(fb,342,787,36,component_name(s_component_browse),EPD_DRAW_ALIGN_CENTER,0);
     unsigned selected=component_index(s_component_browse);
@@ -809,7 +766,7 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     (void)ctx;ui_clear_page(fb);ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},0xff,fb);
     if(s_view==HOME_GOAL){s_widget_trail.valid=s_time_trail.valid=false;}
     s_widget_phase=s_time_phase=clock_phase_now(&s_date);
-    if(s_view==HOME_ROOT)render_root(fb);else if(s_view==HOME_GOAL)render_goal(fb);else if(s_view==HOME_TIME)render_time(fb);else render_components(fb);
+    if(s_view==HOME_ROOT){ui_root_background(fb);ui_fill_round_rect(fb,(EpdRect){24,632,320,374},24,UI_GRAY_WHITE);ui_fill_round_rect(fb,(EpdRect){354,632,300,374},24,UI_GRAY_WHITE);render_root(fb);}else if(s_view==HOME_GOAL)render_goal(fb);else if(s_view==HOME_TIME)render_time(fb);else render_components(fb);
     if(s_press_pending && !continue_card_pressed())ui_draw_selected_round_rect(fb,s_pressed,s_pressed.width==60?30:s_pressed.width==64?32:s_pressed.width==86?43:s_pressed.height==76?38:20);
     if(s_view!=HOME_ROOT)ui_nav_draw(fb,0);
 }
@@ -835,7 +792,9 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
         else render_component_controls(ctx->fb);
         if(s_press_pending)ui_draw_selected_round_rect(ctx->fb,s_pressed,s_pressed.width==64?32:38);
         enum EpdDrawError result=present_clock_area(ctx,s_area);guard_draw_result(ctx->hl,result);
+#if KIIKO_BOARD_METALIO47
         s_component_warm_after_ms=esp_timer_get_time()/1000+600;
+#endif
         if(result==EPD_DRAW_SUCCESS){s_component_pending=false;s_component_dirty=(EpdRect){0};if(visible_motion_clock()){s_widget_shown=s_date;s_widget_stamp=date_stamp(&s_date);s_widget_phase_shown=s_widget_phase;s_motion_ms=ctx->now_ms;}}
         return true;
     }
@@ -872,11 +831,20 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     if(redraw==APP_REDRAW_AREA&&s_clock_pending) {
         s_clock_pending=false;
         ui_fill_rect_fast((EpdRect){24,18,156,44},0xff,ctx->fb);ui_nav_clock_draw(ctx->fb);
+#if KIIKO_BOARD_METALIO47
+        if(display_pipeline_enabled()) {
+            EpdRect dirty={24,18,156,44};
+            if(s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
+                date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
+                clock_draw_region(ctx->fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),style,(EpdRect){24,640,320,326},s_widget_phase);
+                dirty=ui_rect_union(dirty,style==UI_HOME_CLOCK_PS1995?(EpdRect){78,684,198,198}:component_clock_graphics());
+            }
+            enum EpdDrawError result=present_clock_area(ctx,dirty);
+            guard_draw_result(ctx->hl,result);if(result==EPD_DRAW_SUCCESS)s_clock_minute=minute;return true;
+        }
+#endif
         enum EpdDrawError result=update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,(EpdRect){24,18,156,44});
-        if(result==EPD_DRAW_SUCCESS&&s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER&&!home_widgets_paused()) {
-            // 组件暂停时不重绘表盘：分钟局刷只更新状态栏时钟，提示文字不被盖掉。
-            // / With the widgets paused the clock is not redrawn: the minute
-            // partial updates the status-bar clock only, leaving the notice intact.
+        if(result==EPD_DRAW_SUCCESS&&s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
             date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
             clock_draw_region(ctx->fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),style,(EpdRect){24,640,320,326},s_widget_phase);
             result=present_clock_area(ctx,style==UI_HOME_CLOCK_PS1995?(EpdRect){78,684,198,198}:component_clock_graphics());
@@ -889,7 +857,9 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     else if(redraw==APP_REDRAW_FULL||s_home_force_full_once) {s_home_force_full_once=false;result=update_display_full(ctx->hl);}
     else result=update_display_fast_page(ctx->hl);
     guard_draw_result(ctx->hl,result);
+#if KIIKO_BOARD_METALIO47
     if(s_view==HOME_COMPONENT)s_component_warm_after_ms=esp_timer_get_time()/1000+600;
+#endif
     if(redraw!=APP_REDRAW_AREA&&result==EPD_DRAW_SUCCESS){s_clock_minute=minute;
         if(s_view==HOME_TIME){s_time_stamp=date_stamp(&s_date);s_time_phase_shown=s_time_phase;}
         if(visible_motion_clock()){s_widget_shown=s_date;s_widget_stamp=date_stamp(&s_date);s_widget_phase_shown=s_widget_phase;}
@@ -903,16 +873,14 @@ static void refresh_excerpt(void) {
     if(book->has_progress)book_excerpt_load(book->path,book->progress.chapter,s_excerpt);
 }
 static void on_enter(app_ctx_t *ctx) {
+    s_component_dirty=(EpdRect){0};
     s_cover_generation=book_cover_jobs_begin();
     const uint32_t progress_revision=book_progress_revision();
-    s_component_dirty=(EpdRect){0};s_view=HOME_ROOT;
     s_clock_base_attempted=false;clock_base_prepare();
-    // 完整预览包含系统字形；从设置或字体页回来后失效。
+#if KIIKO_BOARD_METALIO47
     // Complete previews include font-rendered numerals; discard after returning from font/settings pages.
     ui_home_clock_preview_invalidate();
-    // 以当前余量初始化暂停态，避免进页首帧多一次整页重画。/ Seed the pause
-    // state from the current margin so the first tick needs no extra repaint.
-    s_widgets_paused=home_widgets_paused();
+#endif
     s_widget_trail.valid=s_time_trail.valid=false;
     (void)ctx;s_view=HOME_ROOT;s_clock_pending=s_time_pending=s_widget_pending=s_component_pending=false;s_press_pending=false;s_save_error=false;s_time_stamp=s_widget_stamp=-1;s_motion_ms=-100;
     s_home_force_full_once=app_settings_home_full_refresh();refresh_days();avatar_prepare_state();
@@ -938,6 +906,10 @@ static void on_enter(app_ctx_t *ctx) {
     rp_boot_mark("excerpt");
 }
 static void on_media_lost(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    metalio_cover_cache_clear();
+#else
+#endif
     app_home_release_clock_cache();
     (void)ctx;clear_cover_cache();memset(&s_current,0,sizeof(s_current));memset(s_recent,0,sizeof(s_recent));
     s_books_cache_valid=false;s_excerpt[0]=0;s_avatar_ready=s_avatar_pending=false;
@@ -946,12 +918,6 @@ static void on_media_ready(app_ctx_t *ctx) {(void)ctx;s_books_cache_valid=false;
 static app_redraw_t on_tick(app_ctx_t *ctx) {
     clock_base_prepare();
     if(ctx->consumed||(ctx->touch&&ctx->touch->touched))return APP_REDRAW_NONE;
-    // 组件暂停态翻转时整页重画：暂停即画提示并释放表盘底图，恢复即重绘组件，
-    // 都不会在组件区留下残影。/ A pause-state flip repaints the page: pausing
-    // paints the notice and releases the clock base, resuming redraws the
-    // widgets; neither leaves remnants in the widget area.
-    bool widgets_paused=home_widgets_paused();
-    if(widgets_paused!=s_widgets_paused){s_widgets_paused=widgets_paused;return APP_REDRAW_PAGE;}
     if(s_view==HOME_COMPONENT&&s_component_pending){s_area=s_component_dirty;return APP_REDRAW_AREA;}
     bool folder_preview=s_view==HOME_COMPONENT&&s_component_browse==APP_HOME_FOLDER;
     if(s_view==HOME_ROOT||folder_preview){
@@ -983,7 +949,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         if(date.tm_yday!=s_date.tm_yday||date.tm_year!=s_date.tm_year){refresh_days();return APP_REDRAW_PAGE;}
         if(date_stamp(&date)!=s_time_stamp||(ui_home_clock_has_motion(clock_style(app_settings_home_component()))&&phase!=s_time_phase_shown&&clock_motion_due(ctx))){s_time_date=date;s_time_phase=phase;s_time_pending=true;return APP_REDRAW_AREA;}return APP_REDRAW_NONE;
     }
-    if(visible_motion_clock()&&!widgets_paused){
+    if(visible_motion_clock()){
         struct tm date;if(date_now(&date)){
             unsigned phase=clock_phase_now(&date);
             if(date.tm_yday!=s_date.tm_yday||date.tm_year!=s_date.tm_year){refresh_days();return APP_REDRAW_PAGE;}
@@ -999,7 +965,9 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     // 只为正在预览的书夹准备封面；切到时钟即停止隐藏文件处理。
     // Prepare covers only for the visible folder preview; switching to a clock stops hidden media work.
     if(s_view==HOME_COMPONENT&&!folder_preview){
+#if KIIKO_BOARD_METALIO47
         component_prepare_neighbor(ctx);
+#endif
         return APP_REDRAW_NONE;
     }
     if(s_view==HOME_GOAL)return APP_REDRAW_NONE;
@@ -1028,7 +996,6 @@ static bool hit(EpdRect r,int x,int y) {return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<
 static EpdRect control(int x,int y) {
     if(s_view==HOME_ROOT) {
         if(featured()->path[0] && hit(continue_card_hit_rect(),x,y))return continue_card_rect();
-        if(hit(anki_pill_rect(),x,y))return anki_pill_rect();
         if(hit((EpdRect){510,88,60,60},x,y))return(EpdRect){510,88,60,60};
     }else if(hit((EpdRect){36,78,60,60},x,y))return(EpdRect){0}; // 共享圆圈反馈负责题头返回，避免再叠错位框。/ Shared circle feedback owns header backs; do not add a shifted frame.
     if(s_view==HOME_COMPONENT){
@@ -1046,10 +1013,12 @@ static EpdRect control(int x,int y) {
 static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     if(ev->type==UI_GESTURE_PRESS) {
         s_pressed=control(ev->x0,ev->y0);
+#if KIIKO_BOARD_METALIO47
         s_component_warm_after_ms=ctx->now_ms+600;
         // 箭头不先推屏，松手后的新样式承担本次反馈，避免连续两次扫描。
         // Let the released arrow's new style provide feedback in one output, without a preceding press scan.
         if(s_view==HOME_COMPONENT&&s_pressed.width==64){s_press_pending=false;return APP_REDRAW_NONE;}
+#endif
         s_press_pending=s_pressed.width>0;
         if(s_press_pending){s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}
         return APP_REDRAW_NONE;
@@ -1057,9 +1026,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     bool restore=s_press_pending;
     if(ev->type==UI_GESTURE_MOVE) {if(s_press_pending&&!hit(continue_card_pressed()?continue_card_hit_rect():s_pressed,ev->x,ev->y)){s_press_pending=false;s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}return APP_REDRAW_NONE;}
     s_press_pending=false;
+#if KIIKO_BOARD_METALIO47
     s_component_warm_after_ms=ctx->now_ms+600;
+#endif
     if(ev->type==UI_GESTURE_LONG_PRESS&&s_view==HOME_ROOT&&hit((EpdRect){24,640,320,365},ev->x0,ev->y0)) {
-        s_component_browse=app_settings_home_component();s_clock_base_attempted=false;s_view=HOME_COMPONENT;s_save_error=false;return APP_REDRAW_PAGE;
+        s_component_browse=app_settings_home_component();s_view=HOME_COMPONENT;s_save_error=false;return APP_REDRAW_PAGE;
     }
     if(s_view==HOME_COMPONENT&&ev->y0>=250&&ev->y0<970){
         int direction=ev->type==UI_GESTURE_SWIPE_L?1:ev->type==UI_GESTURE_SWIPE_R?-1:0;
@@ -1067,13 +1038,19 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         if(ev->type==UI_GESTURE_TAP&&hit((EpdRect){584,472,64,64},ev->x0,ev->y0))direction=1;
         if(direction){
             unsigned index=component_index(s_component_browse);
+#if KIIKO_BOARD_METALIO47
             bool was_current=s_component_browse==app_settings_home_component(),had_error=s_save_error;
+#endif
             s_component_browse=s_components[(index+HOME_COMPONENT_OPTIONS+direction)%HOME_COMPONENT_OPTIONS];
             s_save_error=false;s_widget_pending=false;
+#if KIIKO_BOARD_METALIO47
             // 只有“使用此样式/返回首页”改变或清理保存错误时才包含底部按钮。
             // Include the apply button only when its label changes or a save error must be cleared.
             bool controls=had_error||was_current!=(s_component_browse==app_settings_home_component());
             EpdRect next={36,260,612,controls?812:716};
+#else
+            EpdRect next={36,260,612,812};
+#endif
             s_area=s_component_dirty=s_component_pending?ui_rect_union(s_component_dirty,next):next;
             s_component_pending=true;
             return APP_REDRAW_AREA;
@@ -1089,7 +1066,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
             return APP_REDRAW_PAGE;
         }
     }else if(s_view==HOME_TIME){
-        if(hit((EpdRect){36,996,612,76},x,y)){s_view=HOME_COMPONENT;s_clock_base_attempted=false;s_component_browse=app_settings_home_component();s_save_error=false;return APP_REDRAW_PAGE;}
+        if(hit((EpdRect){36,996,612,76},x,y)){s_view=HOME_COMPONENT;s_component_browse=app_settings_home_component();s_save_error=false;return APP_REDRAW_PAGE;}
     }else if(s_view==HOME_GOAL) {
         uint8_t old=s_goal_draft;
         if(hit((EpdRect){56,834,86,86},x,y)&&s_goal_draft>5)s_goal_draft-=5;
@@ -1101,14 +1078,6 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         if(old!=s_goal_draft){s_area=(EpdRect){36,198,612,830};return APP_REDRAW_AREA;}
     }else {
         int tab=ui_nav_hit(x,y);if(tab>=0){ui_nav_request(ctx,tab);return APP_REDRAW_NONE;}
-        if(hit(anki_pill_rect(),x,y)) {
-            // 直接切到 Anki 页面；不带文件导入，故不调 app_anki_request_open。
-            // / Switch straight to the Anki page; no file import involved, so
-            // app_anki_request_open is intentionally not called.
-            extern const app_desc_t app_anki;
-            ctx->request_app=&app_anki;
-            return APP_REDRAW_NONE;
-        }
         if(hit((EpdRect){24,640,320,365},x,y)){
             if(app_settings_home_component()==APP_HOME_FOLDER){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
             s_time_trail.valid=false;s_view=HOME_TIME;s_time_pending=false;s_time_stamp=-1;refresh_days();return APP_REDRAW_PAGE;
@@ -1118,7 +1087,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         }
         if(hit(continue_card_hit_rect(),x,y)) {
             home_book_t *b=featured();
-            if(b->path[0] && app_book_request_open_from_home(b->path)){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
+            if(b->path[0] && app_book_request_open_from_home(b->path)){
+#if KIIKO_BOARD_METALIO47
+                (void)metalio_haptic_click();
+#endif
+                ui_nav_request(ctx,1);return APP_REDRAW_NONE;
+            }
             if(restore){s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}
             return APP_REDRAW_NONE;
         }

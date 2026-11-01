@@ -18,6 +18,11 @@
 #include "ttf_font.h"
 #include "ui_kit.h"
 #include "ui_nav.h"
+#if KIIKO_BOARD_METALIO47
+#include "esp_timer.h"
+#include "read_pico_sd.h"
+#include "sleep.h"
+#endif
 
 static bool s_reading;
 // Failed unchanged files are not repeatedly opened (opening unloads the active slot).
@@ -33,12 +38,22 @@ static off_t s_rejected_size;
 // must take effect at once, or "changing the font does nothing" reads as a
 // broken font feature until the next clean boot.
 static bool s_user_choice;
+#if KIIKO_BOARD_METALIO47
+static int64_t s_rejected_retry_us;
+static unsigned s_rejected_attempts;
+#endif
 static bool font_file(const char *path, struct stat *st) {
     return path && stat(path, st) == 0 && S_ISREG(st->st_mode) && st->st_size > 0;
 }
 
 static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
+    // 用户显式选过字体后，异常启动的保护锁不再拦着真实字体加载。
+    // Once the user picked a face explicitly, the abnormal-boot guard stops
+    // forcing the built-in one.
     if (pico_boot_recovery() && !s_user_choice) return TTF_FONT_BUILTIN;
+#if KIIKO_BOARD_METALIO47
+    if(app_sleep_media_pending() || !read_pico_sd_io_ready())return ttf_font_path();
+#endif
     const char* chosen = app_settings_system_font_path();
     if (chosen[0]) return chosen;
     if (snprintf(fallback, TTF_FONT_PATH_MAX, "%s/Hei.ttf", app_settings_fonts_dir()) >= TTF_FONT_PATH_MAX)
@@ -51,16 +66,38 @@ static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
 }
 
 static bool activate(const char* path) {
+#if KIIKO_BOARD_METALIO47
+    // 有意暂停TF时不stat/卸载旧槽；挂载恢复后沿原选择重试。
+    // Do not stat/unload retained faces while media is intentionally paused; retry the saved choice after mount.
+    if(!ttf_font_path_is_builtin(path) && (app_sleep_media_pending() || !read_pico_sd_io_ready()))return false;
+    const bool had_builtin=ttf_font_ready()&&ttf_font_is_builtin();
+#endif
     struct stat st = {0};
     bool builtin = ttf_font_path_is_builtin(path);
     bool valid = builtin || font_file(path, &st);
     bool rejected = !builtin && !strcmp(s_rejected, path) &&
         s_rejected_mtime == st.st_mtime && s_rejected_size == st.st_size;
+#if KIIKO_BOARD_METALIO47
+    // 手动加载成功即可解除旧拒绝；临时I/O或内存失败有界退避，不永久封锁同一文件。
+    // A successful manual load clears old rejection; transient I/O/OOM failures back off without permanently blocking the file.
+    if (valid && ttf_font_ready() && !strcmp(ttf_font_path(), path)) {
+        if (!builtin) { s_rejected[0]=0; s_rejected_attempts=0; }
+        return false;
+    }
+    if (rejected && s_rejected_retry_us && esp_timer_get_time() >= s_rejected_retry_us)
+        rejected=false;
+#endif
     if (!valid || rejected) path = TTF_FONT_BUILTIN;
     if (ttf_font_ready() && !strcmp(ttf_font_path(), path)) return false;
+    // 两条板型分支都要拿到错误码：下面按 ESP_ERR_NO_MEM 做回收重试。
+    // Both board branches need the error code: the reclaim-and-retry below keys
+    // off ESP_ERR_NO_MEM.
     esp_err_t err = ttf_font_open(path);
     if (err == ESP_OK) {
         if (!ttf_font_path_is_builtin(path)) s_rejected[0] = 0;
+#if KIIKO_BOARD_METALIO47
+        if (!ttf_font_path_is_builtin(path)) s_rejected_attempts=0;
+#endif
         return true;
     }
     // 失败不能静默：路径与错误码必须留在日志里，否则现场只能看到「字体变回
@@ -86,15 +123,31 @@ static bool activate(const char* path) {
         err = ttf_font_open(path);
         if (err == ESP_OK) {
             if (!ttf_font_path_is_builtin(path)) s_rejected[0] = 0;
+#if KIIKO_BOARD_METALIO47
+            if (!ttf_font_path_is_builtin(path)) s_rejected_attempts = 0;
+#endif
             return true;
         }
         ESP_LOGE("app_font", "retry %s failed: %s", path, esp_err_to_name(err));
     } else if (!ttf_font_path_is_builtin(path)) {
+#if KIIKO_BOARD_METALIO47
+        if (strcmp(s_rejected,path) || s_rejected_mtime!=st.st_mtime || s_rejected_size!=st.st_size)
+            s_rejected_attempts=0;
+        static const unsigned retry_ms[]={1000,3000,10000,30000};
+        unsigned index=s_rejected_attempts<3?s_rejected_attempts:3;
+        if(s_rejected_attempts<4)++s_rejected_attempts;
+        s_rejected_retry_us=err==ESP_ERR_INVALID_RESPONSE?0:
+            esp_timer_get_time()+(int64_t)retry_ms[index]*1000;
+#endif
         snprintf(s_rejected, sizeof(s_rejected), "%s", path);
         s_rejected_mtime = st.st_mtime;
         s_rejected_size = st.st_size;
     }
+#if KIIKO_BOARD_METALIO47
+    if (ttf_font_ready() && ttf_font_is_builtin()) return !had_builtin;
+#else
     if (ttf_font_ready() && ttf_font_is_builtin()) return false;
+#endif
     return ttf_font_open_builtin() == ESP_OK;
 }
 
@@ -109,6 +162,13 @@ void app_font_allow_user_choice(void) {
     s_rejected[0] = 0;
     s_rejected_mtime = 0;
     s_rejected_size = 0;
+#if KIIKO_BOARD_METALIO47
+    // 显式选择同时解除退避计数，否则下一次激活仍会等到退避窗口结束。
+    // An explicit pick also clears the backoff counters, or the next activation
+    // would still wait out the retry window.
+    s_rejected_attempts = 0;
+    s_rejected_retry_us = 0;
+#endif
 }
 
 bool app_font_activate_system(void) {
@@ -145,6 +205,14 @@ bool app_font_activate_reading(void) {
 bool app_font_retry_active(void) {
     return s_reading ? app_font_activate_reading() : app_font_activate_system();
 }
+#if KIIKO_BOARD_METALIO47
+bool app_font_recover_media(void) {
+    s_rejected[0] = 0;
+    s_rejected_attempts = 0;
+    s_rejected_retry_us = 0;
+    return app_font_retry_active();
+}
+#endif
 
 void app_font_begin_lock(app_lock_font_t *saved) {
     if (!saved) return;
@@ -155,8 +223,23 @@ void app_font_begin_lock(app_lock_font_t *saved) {
 
 void app_font_end_lock(const app_lock_font_t *saved) {
     if (!saved) return;
+#if KIIKO_BOARD_METALIO47
+#else
     (void)activate(saved->path);
+#endif
     s_reading = saved->reading;
+#if KIIKO_BOARD_METALIO47
+    const char *restore=saved->path;
+    // 暂时退回内建不能覆盖阅读意图；锁屏前未加载成功的TF字体在解锁时再尝试。
+    // A temporary built-in fallback does not replace reader intent; retry the selected TF face on unlock.
+    if (pico_boot_recovery()) restore=TTF_FONT_BUILTIN;
+    else if(s_reading && ttf_font_path_is_builtin(restore)) restore=app_settings_font_path();
+    if(ttf_font_path_is_builtin(restore)) restore=TTF_FONT_BUILTIN;
+    if ((ttf_font_path_is_builtin(restore)||read_pico_sd_io_ready()) &&
+        (!ttf_font_ready() || strcmp(restore, ttf_font_path())) && !activate(restore) && !ttf_font_is_builtin())
+        (void)ttf_font_open_builtin();
+#else
+#endif
     ttf_set_stroke_adjust_fine(s_reading ? app_settings_book_weight_fine() : 0);
     ttf_set_antialias(!s_reading || app_settings_book_antialias());
     const char *chosen = app_settings_system_font_path();

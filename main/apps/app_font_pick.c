@@ -442,20 +442,41 @@ static app_redraw_t pick(int index) {
     // app_font_activate_system() (called on every page switch), which reads
     // exactly as "changing the font does nothing until a reboot".
     app_font_allow_user_choice();
+#if KIIKO_BOARD_METALIO47
+    const char *path = TTF_FONT_BUILTIN;
+    if (index != 0) {
+#else
     if (index == 0) {
         app_settings_set_font_path("");
         ttf_font_open_builtin();
     } else {
+#endif
         const ttf_font_item_t* item = ttf_font_item(index - 1);
         if (item == NULL) return APP_REDRAW_NONE;
         read_pico_sd_info_t sd = {0};
         read_pico_sd_get_info(&sd);
         if (!sd.present || !sd.mounted) return APP_REDRAW_FULL;
+#if KIIKO_BOARD_METALIO47
+        path = item->path;
+    }
+    char previous[TTF_FONT_PATH_MAX];
+    snprintf(previous, sizeof(previous), "%s", ttf_font_path());
+    esp_err_t err = ttf_font_open(path);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "font switch %s: %s", path, esp_err_to_name(err));
+        return APP_REDRAW_FULL;
+    }
+    app_settings_set_font_path(path);
+    if (strcmp(app_settings_font_path(), path)) {
+        (void)ttf_font_open(previous);
+        return APP_REDRAW_FULL;
+#else
         app_settings_set_font_path(item->path);
         esp_err_t err = ttf_font_open(item->path);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "font switch %s: %s", item->path, esp_err_to_name(err));
         }
+#endif
     }
     // 立刻把界面字体上下文切到这次选择：本页重绘是 APP_REDRAW_FULL，
     // 不在这里同步的话样例行仍按上一套（内建）绘制，用户看不到变化。

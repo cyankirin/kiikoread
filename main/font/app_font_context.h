@@ -26,3 +26,7 @@ bool app_font_retry_active(void);
 /// boot put on the system and reading faces, and clear the rejection record so
 /// this choice — and every later activation — really loads the picked face.
 void app_font_allow_user_choice(void);
+#if KIIKO_BOARD_METALIO47
+/// Clear transient file rejection after manual remount; abnormal-boot protection still applies.
+bool app_font_recover_media(void);
+#endif
