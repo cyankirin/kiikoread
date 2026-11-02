@@ -57,6 +57,12 @@ tools/buzzer_score_wav
 # Anki 分支发布的应用分区固件（供 Flash Download Tool 烧到 0x10000）
 # App-partition firmware published with the Anki fork (flash at 0x10000).
 !/firmware/*.bin
+# 网页刷机用的三个基础部件（bootloader / 分区表 / otadata）：CI 没有构建产物，
+# 但必须与本地验证过的字节完全一致，所以单独入库一份。
+# / The three base parts for web flashing (bootloader / partitions / otadata). CI has no
+#   build output, yet the published bytes must equal the locally verified ones, so this
+#   one copy is tracked. `!/firmware/*.bin` does not cross directories.
+!/firmware/anki-base/*.bin
 !/flash/releases/*/bootloader.bin
 !/flash/releases/*/partitions.bin
 !/flash/releases/*/ota_data_initial.bin

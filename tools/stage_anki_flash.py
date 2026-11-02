@@ -29,6 +29,10 @@ DEFAULT_PACKAGE = ROOT / "build" / "boards" / "packages" / "pico"
 DEFAULT_DESTINATION = ROOT / "flash" / "anki"
 DEFAULT_BASE_DIR = ROOT / "flash"
 DEFAULT_APP_DIR = ROOT / "firmware"
+# 中文：CI 没有构建产物，但仍要与本地验证过的字节完全一致，因此这三个基础部件单独入库。
+# English: CI has no build output, yet the published bytes must equal the locally verified
+#          ones, so the three base parts are tracked here as well.
+BASE_PARTS_DIR = ROOT / "firmware" / "anki-base"
 BOARD_JSON = ROOT / "boards" / "pico" / "board.json"
 
 # 中文：部件顺序固定，页面与清单都按这个顺序展示。
@@ -100,16 +104,17 @@ def resolve_sources(
     app_image: Path | None,
     version: str | None,
     use_default_package: bool = True,
-) -> tuple[dict[str, bytes], str, Path | None]:
+) -> tuple[dict[str, bytes], str, Path | None, str]:
     """Load the four parts and the version they belong to.
 
-    中文：优先用本次构建的包（四个部件同源自证）；没有构建包时，三个基础部件从
-          `base_dir`（默认 `flash/`，Pages 部署时传已校验的 `_site`）取，应用镜像
-          从 `firmware/Read_Pico-<版本>.bin` 取——这两个位置都在版本库里。
-    English: Prefer this build's package, where all four parts share one provenance.
-          Without it, take the three base parts from `base_dir` (default `flash/`, or the
-          verified `_site` during a Pages deploy) and the app image from the committed
-          `firmware/Read_Pico-<version>.bin`.
+    中文：取源优先级 = 本次构建包 → `firmware/anki-base/`（入库的基础部件）→ `--base-dir`。
+          应用镜像优先级 = 构建包 → `--app-image` → `firmware/Read_Pico-<版本>.bin`。
+          前两者都在版本库里，Pages 部署（没有构建产物）与本地跑出的是同一套字节。
+    English: Base parts come from this build's package, else the tracked
+          `firmware/anki-base/`, else `--base-dir`. The app image comes from the package,
+          else `--app-image`, else the committed `firmware/Read_Pico-<version>.bin`. The
+          first choices are in the repository, so a Pages deploy without any build output
+          publishes exactly the bytes that were verified locally.
     """
     expected_version = version or board_version()
     chosen_package = package
@@ -117,6 +122,7 @@ def resolve_sources(
         chosen_package = DEFAULT_PACKAGE
 
     sources: dict[str, Path] = {}
+    notes: list[str] = []
     if chosen_package is not None:
         manifest_path = chosen_package / "manifest.json"
         if not manifest_path.is_file():
@@ -143,20 +149,28 @@ def resolve_sources(
             if not path.is_file():
                 raise SystemExit(f"build package is missing {name}: {chosen_package}")
             sources[name] = path
+        notes.append(f"build package {chosen_package}")
     else:
-        base = base_dir if base_dir is not None else DEFAULT_BASE_DIR
+        base: Path | None = None
+        for candidate in (BASE_PARTS_DIR, base_dir, DEFAULT_BASE_DIR):
+            if candidate is None:
+                continue
+            if all((candidate / name).is_file() for name in BASE_PARTS):
+                base = candidate
+                break
+        if base is None:
+            raise SystemExit(
+                f"missing base parts ({', '.join(BASE_PARTS)}): neither the build package nor "
+                f"{BASE_PARTS_DIR} nor --base-dir provides them; run the pico build first")
         for name in BASE_PARTS:
-            path = base / name
-            if not path.is_file():
-                raise SystemExit(
-                    f"missing base part {name} in {base}; run the pico build first "
-                    f"or pass --package/--base-dir")
-            sources[name] = path
+            sources[name] = base / name
         app = app_image if app_image is not None else DEFAULT_APP_DIR / f"{PROJECT}-{expected_version}.bin"
         if not app.is_file():
             raise SystemExit(
                 f"missing application image {app}; build the pico firmware for {expected_version} first")
         sources[APP_PART] = app
+        notes.append(f"base parts {base}")
+        notes.append(f"app image {app}")
 
     parts = {name: sources[name].read_bytes() for name in PART_ORDER}
     for name, data in parts.items():
@@ -166,7 +180,29 @@ def resolve_sources(
         if len(data) > end - start:
             raise SystemExit(
                 f"part {name} is {len(data)} bytes, larger than its {end - start} byte region")
-    return parts, expected_version, chosen_package
+    return parts, expected_version, chosen_package, " + ".join(notes)
+
+
+def base_part_digests() -> dict[str, set[str]]:
+    """SHA-256 of the base parts from every source a published bundle may use.
+
+    中文：只有「本次构建包」与「firmware/anki-base/」是允许的来源。上游 Release 的
+          bootloader 与我们的不同（日志等级裁到 ERROR 会重编引导程序），静默替换就等于
+          发布的不是本地验证过的那套字节。
+    English: Only this build's package and `firmware/anki-base/` are acceptable sources.
+          The upstream Release bootloader differs from ours (trimming console logs to
+          ERROR rebuilds it), and swapping it silently would publish bytes nobody verified.
+    """
+    allowed: dict[str, set[str]] = {name: set() for name in BASE_PARTS}
+    candidates: list[Path] = [BASE_PARTS_DIR]
+    if DEFAULT_PACKAGE.is_dir():
+        candidates.append(DEFAULT_PACKAGE)
+    for folder in candidates:
+        for name in BASE_PARTS:
+            path = folder / name
+            if path.is_file():
+                allowed[name].add(hashlib.sha256(path.read_bytes()).hexdigest())
+    return allowed
 
 
 def build_manifest(version: str, parts: dict[str, bytes]) -> dict:
@@ -280,6 +316,16 @@ def verify(destination: Path, expected_version: str | None = None) -> dict:
             f"application image is {desc['project']} {desc['version']}, expected {PROJECT} {version}")
     if fork.get("app_version") != desc["version"]:
         raise SystemExit("staged manifest app_version does not match the application image")
+    # 中文：基础部件必须来自「本次构建包」或入库的 firmware/anki-base，不接受别的来源。
+    # English: Base parts must come from this build's package or the tracked
+    #          firmware/anki-base; any other origin is refused, not silently accepted.
+    allowed = base_part_digests()
+    for name in BASE_PARTS:
+        digest = hashlib.sha256(binaries[name]).hexdigest()
+        if digest not in allowed[name]:
+            raise SystemExit(
+                f"{name} is not the verified one: SHA256 {digest} matches neither the build "
+                f"package nor {BASE_PARTS_DIR}; refusing to publish a different base part")
     return manifest
 
 
@@ -287,13 +333,12 @@ def stage(destination: Path, package: Path | None = None, base_dir: Path | None 
           app_image: Path | None = None, version: str | None = None,
           use_default_package: bool = True) -> dict:
     """Generate the bundle at `destination` and verify what was written."""
-    parts, resolved_version, used_package = resolve_sources(
+    parts, resolved_version, _used_package, provenance = resolve_sources(
         package, base_dir, app_image, version, use_default_package)
     manifest = build_manifest(resolved_version, parts)
     write_bundle(destination, manifest, parts)
     verify(destination, resolved_version)
-    source = used_package if used_package is not None else (base_dir or DEFAULT_BASE_DIR)
-    print(f"Anki bundle staged: {destination} (version {resolved_version}, parts from {source})")
+    print(f"Anki bundle staged: {destination} (version {resolved_version}, from {provenance})")
     for part in manifest["builds"][0]["parts"]:
         print(f"  {part['path']}: {part['size']} bytes at 0x{part['offset']:x}, "
               f"SHA256 {part['sha256']}")
@@ -312,7 +357,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="ignore the build package and assemble from --base-dir/--app-image "
                              "(the same path CI takes when no build output is available)")
     parser.add_argument("--base-dir", type=Path,
-                        help="fallback source of bootloader/partitions/otadata (default: flash/)")
+                        help="last-resort source of bootloader/partitions/otadata "
+                             "(default: flash/; only used when neither the build package nor "
+                             "firmware/anki-base provides them)")
     parser.add_argument("--app-image", type=Path,
                         help="fallback application image (default: firmware/Read_Pico-<version>.bin)")
     parser.add_argument("--version", help="expected firmware version (default: boards/pico/board.json)")
