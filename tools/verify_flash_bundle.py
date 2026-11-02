@@ -148,6 +148,20 @@ def check(folder: Path) -> None:
     check_archived_releases(folder)
 
 
+def _strip_comments(markup: str) -> str:
+    """Return `markup` with HTML and JavaScript comments removed.
+
+    中文：页面闸门必须匹配真正的语句，不能匹配注释里的字样 —— 页面的双语注释里就写着
+          `./integrity.js` 与 `prepareManifest`。这里去掉 HTML 注释、块注释与整行 `//` 注释。
+    English: Page gates must match real statements, never prose: the page's bilingual comments
+         already mention `./integrity.js` and `prepareManifest`. HTML comments, block comments
+         and whole-line `//` comments are removed before matching.
+    """
+    without_html = re.sub(r"<!--.*?-->", "", markup, flags=re.DOTALL)
+    without_blocks = re.sub(r"/\*.*?\*/", "", without_html, flags=re.DOTALL)
+    return re.sub(r"(?m)^[ \t]*//.*$", "", without_blocks)
+
+
 def check_anki_bundle(folder: Path) -> dict:
     """Validate the fork's Anki web-flash bundle: same layout, user data preserved.
 
@@ -207,16 +221,33 @@ def check_anki_bundle(folder: Path) -> dict:
     verifier_path = folder / "integrity.js"
     assert verifier_path.is_file(), "missing the Anki browser-side verifier (integrity.js)"
     page = (folder / "index.html").read_text(encoding="utf-8")
-    assert "./integrity.js" in page, "Anki page must load its browser-side verifier"
-    assert "prepareManifest" in page, "Anki page must wire the verify-before-open hook"
+    # 中文：**按语句匹配、且先去掉注释**。页面的双语注释里也写着 `./integrity.js` 与
+    #      `prepareManifest`，用子串匹配会让「import 指向不存在的模块」（注释里仍留着正确
+    #      路径）或「占位钩子被删掉」（其它地方仍有这个词）照样放行 —— 页面坏了而 CI 是绿的。
+    # English: Match statements, on a comment-free view. The page's bilingual comments also
+    #      mention `./integrity.js` and `prepareManifest`, so a substring test would pass a page
+    #      whose import points at a missing module (the right path is still in a comment) or
+    #      whose placeholder was deleted (the word survives elsewhere) — broken page, green CI.
+    code = _strip_comments(page)
+    assert re.search(r"import\s*\{[^}]*\bprepareBundle\b[^}]*\}\s*from\s*['\"]\./integrity\.js['\"]",
+                     code), "Anki page must import prepareBundle from ./integrity.js"
     # 中文：install-button.js 把 prepareManifest 当可选钩子，模块加载失败就会静默跳过校验；
     #      页面必须带上只能抛错的占位钩子，否则 404/MIME/缓存/CSP 一失手就是写入未校验字节。
     # English: install-button.js treats prepareManifest as optional, so a failed module load
     #      would silently skip verification. The page must carry the throw-only placeholder;
     #      otherwise a 404/MIME/cache/CSP miss writes unverified bytes.
-    assert "__ankiVerifyUnavailable" in page, (
-        "Anki page must fail closed (throw-only placeholder) when integrity.js does not load")
-    verifier = verifier_path.read_text(encoding="utf-8")
+    assert re.search(r"button\.prepareManifest\s*=\s*window\.__ankiVerifyUnavailable\b", code), (
+        "Anki page must install the throw-only placeholder (button.prepareManifest = "
+        "window.__ankiVerifyUnavailable) when integrity.js does not load")
+    # 中文：占位必须被真正的校验函数覆盖，否则页面永远只有「必然抛错」的占位。
+    # English: The placeholder has to be replaced by the real check, or the page would only
+    #      ever throw.
+    assert re.search(r"installButton\.prepareManifest\s*=\s*async", code), (
+        "Anki page must replace the placeholder with the real verification hook")
+    # 中文：同样只认真正的代码：把某一项挪进注释里也不能满足下面的偏移/容量比对。
+    # English: Same rule for the verifier: a part moved into a comment must not satisfy the
+    #      offset/capacity comparison below.
+    verifier = _strip_comments(verifier_path.read_text(encoding="utf-8"))
     for name, (start, end) in EXPECTED.items():
         located = re.search(
             rf"name: '{re.escape(name)}', offset: (0x[0-9a-fA-F]+), limit: (0x[0-9a-fA-F]+)",
