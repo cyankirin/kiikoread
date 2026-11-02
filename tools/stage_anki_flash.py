@@ -236,9 +236,20 @@ def build_manifest(version: str, parts: dict[str, bytes]) -> dict:
         "version": version,
         "board": BOARD,
         "project": PROJECT,
-        # 中文：刷机不擦除数据，NVS 里的设置与阅读进度保留。
-        # English: Never erase; settings and reading progress in NVS survive the flash.
-        "new_install_prompt_erase": False,
+        # 中文：**极性反直觉，必须为 true**。install-dialog 的决策是
+        #      `new_install_prompt_erase ? ASK_ERASE : _startInstall(true)`：
+        #      - true  → 先弹「Erase device?」询问页，复选框**默认不勾选**，点 Next 才
+        #                把勾选状态当作擦除标志；保持不勾 = 保留设置与阅读进度（本 fork 要的）。
+        #      - false → 直接 `_startInstall(true)`，**立即整片 chip erase**，设置、阅读进度
+        #                与 otadata 一起没掉，且不会询问。
+        # English: The polarity is counter-intuitive and must be `true`. The dialog decides
+        #      with `new_install_prompt_erase ? ASK_ERASE : _startInstall(true)`:
+        #      true  → ask first; the "Erase device" checkbox starts **unchecked**, and only
+        #              that checkbox becomes the erase flag. Leaving it unchecked preserves
+        #              settings and reading progress (what this fork wants).
+        #      false → `_startInstall(true)`, i.e. an immediate full-chip erase without asking,
+        #              taking settings, reading progress and otadata with it.
+        "new_install_prompt_erase": True,
         "anki_fork": {
             "fork": FORK_MARKER,
             "app_version": desc["version"],
@@ -278,8 +289,15 @@ def verify(destination: Path, expected_version: str | None = None) -> dict:
         raise SystemExit(f"staged manifest name is {manifest.get('name')!r}, expected {BUNDLE_NAME!r}")
     if manifest.get("project") != PROJECT or manifest.get("board") != BOARD:
         raise SystemExit("staged manifest does not describe the pico board")
-    if manifest.get("new_install_prompt_erase") is not False:
-        raise SystemExit("staged manifest must keep user data (new_install_prompt_erase false)")
+    # 中文：这里必须要求 true（询问页、复选框默认不勾 = 默认保留数据）；false 会触发
+    #      install-dialog 的 `_startInstall(true)`，即不询问、直接整片擦除。写反就是丢数据。
+    # English: `true` is mandatory here (ask first, checkbox unchecked by default = data
+    #      preserved). `false` makes install-dialog call `_startInstall(true)`, i.e. a silent
+    #      full-chip erase. Getting this backwards loses the user's data.
+    if manifest.get("new_install_prompt_erase") is not True:
+        raise SystemExit(
+            "staged manifest must set new_install_prompt_erase true (ask first, keep data); "
+            "false erases the whole chip without asking")
     fork = manifest.get("anki_fork")
     if not isinstance(fork, dict) or fork.get("fork") != FORK_MARKER:
         raise SystemExit("staged manifest is missing the Anki fork marker")

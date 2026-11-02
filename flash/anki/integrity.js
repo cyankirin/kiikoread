@@ -67,15 +67,22 @@ export function checkBootloader(bytes) {
 /**
  * Check that a manifest describes this fork's Pico bundle.
  *
- * 中文：页面只接受本 fork 的清单：同一个分区布局、四个部件、保留数据（不擦除）。
- * English: Only this fork's bundle is accepted: same layout, four parts, data preserved.
+ * 中文：页面只接受本 fork 的清单：同一个分区布局、四个部件、**默认保留数据**。
+ *      `new_install_prompt_erase` 的极性反直觉：`true` 才会先弹「Erase device?」询问页，
+ *      复选框默认不勾选 → 默认保留设置与阅读进度；`false` 是安装器里的「不询问、立即
+ *      `_startInstall(true)`」，也就是整片 chip erase，必须拒绝。
+ * English: Only this fork's bundle is accepted: same layout, four parts, data kept by
+ *      default. The `new_install_prompt_erase` polarity is counter-intuitive: `true` shows
+ *      the "Erase device?" step whose checkbox starts unchecked (default = keep settings and
+ *      reading progress); `false` makes the installer call `_startInstall(true)` without
+ *      asking, which is a full-chip erase and has to be rejected here.
  */
 export function validateManifest(manifest) {
   if (!manifest || typeof manifest !== 'object') fail('刷机清单无法解析，已停止安装。');
   if (manifest.anki_fork?.fork !== FORK_MARKER) fail('这不是本 fork 的 Anki 刷机清单，已停止安装。');
   if (!VERSION_PATTERN.test(String(manifest.version))) fail('刷机清单的版本号不合法，已停止安装。');
-  if (manifest.new_install_prompt_erase !== false) {
-    fail('Anki 刷机包必须保留设备数据，这份清单要求擦除，已停止安装。');
+  if (manifest.new_install_prompt_erase !== true) {
+    fail('刷机清单没有开启「是否擦除设备」的询问：安装器会直接整片擦除，设置与阅读进度会丢，已停止安装。');
   }
   const builds = manifest.builds;
   if (!Array.isArray(builds) || builds.length !== 1) fail('刷机清单必须只描述一种设备，已停止安装。');
@@ -136,6 +143,13 @@ export async function verifyBundle(manifest, baseURL, options = {}) {
     const downloads = snapshot.builds[0].parts.map(async (part) => {
       const spec = PARTS.find((item) => item.offset === part.offset);
       const target = new URL(part.path, baseURL);
+      // 中文：二道防线。`validateManifest()` 已经把 `part.path` 钉成裸文件名、`baseURL`
+      //      也来自本页的 http(s) 地址，所以今天这条分支不会被触发；留着是为了万一以后
+      //      放宽路径校验时，仍不会去取 `blob:`/`data:`/跨源地址。
+      // English: Second line of defence. `validateManifest()` already pins `part.path` to a
+      //      bare file name (and `baseURL` comes from this page's http(s) origin), so this
+      //      branch cannot fire today; it stays so a future relaxation still cannot fetch
+      //      from blob:, data: or a foreign origin.
       if (!['http:', 'https:', 'file:'].includes(target.protocol)) {
         fail(`部件 ${spec.name} 的来源不可用，已停止安装。`);
       }

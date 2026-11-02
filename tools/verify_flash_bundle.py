@@ -151,16 +151,24 @@ def check(folder: Path) -> None:
 def check_anki_bundle(folder: Path) -> dict:
     """Validate the fork's Anki web-flash bundle: same layout, user data preserved.
 
-    中文：本 fork 的 Anki 版入口写同一套双槽布局，但**不**擦除数据，所以「擦除提示」
-         的极性相反；偏移、大小、哈希、分区表与应用描述的校验与官网包同样严格。
-    English: The fork's Anki entry writes the same dual-slot layout but must never erase
-         data, so the erase-prompt polarity is inverted; every offset, size, hash,
-         partition-table and app-description check stays as strict as the official bundle.
+    中文：本 fork 的 Anki 版入口写同一套双槽布局，并且**必须**保留用户数据。注意
+         `new_install_prompt_erase` 的极性反直觉：`true` 才会先弹「Erase device?」询问页，
+         复选框默认不勾选 → 默认保留；`false` 是 install-dialog 里的「不询问、直接
+         `_startInstall(true)`」，也就是立即整片 chip erase。偏移、大小、哈希、分区表与
+         应用描述的校验与官网包同样严格。
+    English: The fork's Anki entry writes the same dual-slot layout and must preserve user
+         data. The `new_install_prompt_erase` polarity is counter-intuitive: `true` shows the
+         "Erase device?" step whose checkbox starts unchecked, so the default is to keep data;
+         `false` means install-dialog calls `_startInstall(true)` without asking, i.e. an
+         immediate full-chip erase. Every offset, size, hash, partition-table and
+         app-description check stays as strict as the official bundle.
     """
     manifest_path = folder / "manifest.json"
     assert manifest_path.is_file(), "missing Anki flash manifest"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest.get("new_install_prompt_erase") is False, "Anki bundle must preserve user data"
+    assert manifest.get("new_install_prompt_erase") is True, (
+        "Anki bundle must set new_install_prompt_erase true (ask first, checkbox unchecked = "
+        "keep data); false erases the whole chip without asking")
     builds = manifest.get("builds")
     assert isinstance(builds, list) and len(builds) == 1, "one build expected"
     assert builds[0].get("chipFamily") == "ESP32-S3", "wrong target chip"
@@ -201,6 +209,13 @@ def check_anki_bundle(folder: Path) -> dict:
     page = (folder / "index.html").read_text(encoding="utf-8")
     assert "./integrity.js" in page, "Anki page must load its browser-side verifier"
     assert "prepareManifest" in page, "Anki page must wire the verify-before-open hook"
+    # 中文：install-button.js 把 prepareManifest 当可选钩子，模块加载失败就会静默跳过校验；
+    #      页面必须带上只能抛错的占位钩子，否则 404/MIME/缓存/CSP 一失手就是写入未校验字节。
+    # English: install-button.js treats prepareManifest as optional, so a failed module load
+    #      would silently skip verification. The page must carry the throw-only placeholder;
+    #      otherwise a 404/MIME/cache/CSP miss writes unverified bytes.
+    assert "__ankiVerifyUnavailable" in page, (
+        "Anki page must fail closed (throw-only placeholder) when integrity.js does not load")
     verifier = verifier_path.read_text(encoding="utf-8")
     for name, (start, end) in EXPECTED.items():
         located = re.search(

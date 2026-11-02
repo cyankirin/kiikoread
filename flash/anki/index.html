@@ -59,15 +59,15 @@
   <h1>kiikoread · Anki 学习固件<span>。</span></h1>
   <p class="lede">
     这是<b>本 fork</b>（kiikoread · Anki）的 Anki 版固件网页刷机入口：在设备上导入 <code>.apkg</code>，按 Anki 调度复习。
-    刷机会写入引导程序（<code>0x0</code>）、分区表（<code>0x8000</code>）、应用（<code>0x10000</code>）与启动槽标记（<code>0xd10000</code>），<b>默认不擦除数据</b>。
+    刷机会写入引导程序（<code>0x0</code>）、分区表（<code>0x8000</code>）、应用（<code>0x10000</code>）与启动槽标记（<code>0xd10000</code>）；<b>擦除是可选的</b>，默认不勾选。
   </p>
-  <p class="lede-en">This fork adds Anki deck study on top of kiikoread. Flashing writes the bootloader, partition table, app and slot marker, and keeps your data.</p>
+  <p class="lede-en">This fork adds Anki deck study on top of kiikoread. Flashing writes the bootloader, partition table, app and slot marker; erasing is an optional step whose checkbox is left unchecked, so your data stays.</p>
 
   <dl class="meta">
     <dt>固件版本</dt><dd id="meta-version">读取中…</dd>
     <dt>构建时间</dt><dd id="meta-built">读取中…</dd>
     <dt>适用设备</dt><dd>小纸 Pico · RDP-G01-W · ESP32-S3</dd>
-    <dt>数据策略</dt><dd>保留设置与阅读进度（不擦除）</dd>
+    <dt>数据策略</dt><dd>默认保留设置与阅读进度（询问页的「Erase device」保持不勾选）</dd>
   </dl>
 
   <div class="install">
@@ -75,6 +75,10 @@
       用数据线连接墨水屏，然后点击下面的按钮。<br>
       点下去后，本页会<b>先把四个部件各下载一次并逐个核对 SHA-256</b>，四项全部与清单一致才打开串口写入；
       任何一项不一致都会立即中止，设备内容不受影响。
+    </p>
+    <p>
+      写入前还会出现一步「<b>Erase device</b>」询问：<b>保持不勾选</b>再点「Next」，设置与阅读进度就会保留；
+      勾选它才是整片擦除（本页不会替你勾上）。
     </p>
     <esp-web-install-button manifest="./manifest.json">
       <button slot="activate" class="activate" type="button">连接墨水屏，开始刷机</button>
@@ -86,6 +90,7 @@
 
   <h2>刷机前请确认</h2>
   <ul>
+    <li>连接后会出现一步「<b>Erase device</b>」询问：<b>保持不勾选</b>再点「Next」，设置与阅读进度都保留；勾选会整片擦除。</li>
     <li>使用<b>电脑</b>上的 Chrome 或 Edge（版本 89 及以上），并通过 <b>HTTPS</b> 或 <code>localhost</code> 打开本页。</li>
     <li>数据线要能传数据；刷机过程中不要拔线、不要让电脑休眠。</li>
     <li>连接后列表里找不到设备时，先在墨水屏上进入 <b>「设置 → 升级和恢复 → BOOT 刷机」</b>，再重新点上面的按钮。</li>
@@ -94,7 +99,7 @@
 
   <h2>刷完之后</h2>
   <ul>
-    <li>设备会自动重启到新的 Anki 版固件，原有设置、阅读进度与 TF 卡文件都保留。</li>
+    <li>设备会自动重启到新的 Anki 版固件；只要没有勾选「Erase device」，原有设置与阅读进度都还在。</li>
     <li>把 <code>.apkg</code> 放到 TF 卡的 <code>/anki/</code> 目录，在文件页直接打开即可开始复习。</li>
     <li>需要回到原版固件：在「设置 → 升级和恢复」恢复出厂设置，或刷回官方完整包。</li>
     <li>详细步骤见 <a href="https://github.com/cyankirin/kiikoreader-anki/blob/main/docs/anki-flash-guide.md" target="_blank" rel="noopener noreferrer">中文刷机说明 ↗</a>。</li>
@@ -108,6 +113,41 @@
   </footer>
 </main>
 
+<!--
+  中文：fail-closed 占位钩子。install-button.js 把 prepareManifest 当**可选**钩子
+        （`if (t.prepareManifest) prepared = await t.prepareManifest();`）：如果
+        ./integrity.js 因为 404 / MIME / 缓存 / CSP 没能加载，钩子是空的，安装器会直接
+        `port.open()` 写入**未校验**的字节，页面没有任何兜底。所以先用这个只能抛错的
+        占位函数把位置占住——模块加载成功后由下面的 module 覆盖成真正的校验函数；
+        模块没加载成功时，点「开始刷机」必然抛错，安装器 catch 后不会打开串口。
+  English: Fail-closed placeholder. install-button.js treats `prepareManifest` as optional
+        (`if (t.prepareManifest) prepared = await t.prepareManifest();`), so a 404, a wrong
+        MIME type, a stale cache entry or a CSP block on ./integrity.js would let the
+        installer open the port and write unverified bytes. This placeholder can only throw;
+        the module below replaces it with the real check when it loads. If it never loads,
+        clicking the button throws and the installer never opens the port.
+-->
+<script>
+  window.__ankiVerifyUnavailable = function ankiVerifyUnavailable() {
+    throw new Error('校验模块 integrity.js 未加载，已停止安装，设备未被写入；请刷新页面重试。');
+  };
+  (function guardAnkiInstallButton() {
+    function attachGuard() {
+      var button = document.querySelector('esp-web-install-button');
+      if (button && !button.prepareManifest) {
+        button.prepareManifest = window.__ankiVerifyUnavailable;
+      }
+    }
+    // 中文：现在先占位；元素升级成自定义元素后再补一次（避免升级过程丢掉这个自有属性）。
+    // English: Place it now, and again after the element upgrades (in case the upgrade drops
+    //          the own property).
+    attachGuard();
+    var registry = window.customElements;
+    if (registry && registry.whenDefined) {
+      registry.whenDefined('esp-web-install-button').then(attachGuard, function () {});
+    }
+  })();
+</script>
 <script type="module" src="../vendor/web/install-button.js"></script>
 <script type="module">
   // 中文：给刷机按钮挂上「先校验、再开串口」的钩子（install-button.js 预留的 prepareManifest）。
