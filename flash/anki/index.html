@@ -71,7 +71,11 @@
   </dl>
 
   <div class="install">
-    <p>用数据线连接墨水屏，然后点击下面的按钮。</p>
+    <p>
+      用数据线连接墨水屏，然后点击下面的按钮。<br>
+      点下去后，本页会<b>先把四个部件各下载一次并逐个核对 SHA-256</b>，四项全部与清单一致才打开串口写入；
+      任何一项不一致都会立即中止，设备内容不受影响。
+    </p>
     <esp-web-install-button manifest="./manifest.json">
       <button slot="activate" class="activate" type="button">连接墨水屏，开始刷机</button>
       <span slot="unsupported">当前浏览器不支持 WebSerial：请改用电脑上的 Chrome 或 Edge，并通过 HTTPS 打开本页。</span>
@@ -98,11 +102,41 @@
 
   <footer>
     kiikoread · Anki fork · 第三方阅读固件，非官方发布。
-    刷机包由本仓库的构建产物现场生成，清单逐项校验大小与 SHA-256。
+    刷机包由本仓库的构建产物现场生成：发布前由 CI 逐项校验大小与 SHA-256（<code>tools/verify_flash_bundle.py</code>），
+    刷机时本页按 <code>manifest.json</code> 再逐个核对一遍，两次都通过才会写入设备。
+    这一步挡的是传输损坏、缓存里的旧文件与半截下载；清单与固件本身仍由本仓库发布，请确认你打开的是这个站点。
   </footer>
 </main>
 
 <script type="module" src="../vendor/web/install-button.js"></script>
+<script type="module">
+  // 中文：给刷机按钮挂上「先校验、再开串口」的钩子（install-button.js 预留的 prepareManifest）。
+  //      钩子在 port.open() 之前执行：抛错则安装器直接中止，不打开串口、不擦除、不写入。
+  //      四个部件各下载一次，校验通过后以 blob: 交回安装器，因此不会重复下载固件。
+  // English: Attach the verify-before-open hook that install-button.js exposes as
+  //      `prepareManifest`. It runs before `port.open()`, so throwing aborts the install
+  //      without opening the port, erasing or writing. Each part is downloaded once and
+  //      handed back as blob: URLs, so the firmware is never fetched twice.
+  import { prepareBundle } from './integrity.js';
+
+  const supportStatus = document.getElementById('support-status');
+  const installButton = document.querySelector('esp-web-install-button');
+  if (installButton) {
+    installButton.prepareManifest = async function prepareManifest() {
+      supportStatus.textContent = '正在下载并逐项校验四个部件（SHA-256）…';
+      try {
+        const prepared = await prepareBundle(new URL('./manifest.json', document.baseURI).href);
+        supportStatus.textContent = '四个部件已逐项校验通过（SHA-256 与清单一致），开始写入 ' +
+          prepared.manifest.version + '。';
+        return prepared;
+      } catch (error) {
+        supportStatus.textContent = '校验未通过：' +
+          (error && error.message ? error.message : '未知错误') + ' 设备未被写入。';
+        throw error;
+      }
+    };
+  }
+</script>
 <script>
   // 中文：版本与构建时间直接取自已校验的清单，避免页面与固件对不上。
   // English: Read the version and build time from the verified manifest so the page cannot drift.

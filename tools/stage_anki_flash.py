@@ -4,11 +4,14 @@
 中文：本脚本把构建产物整理成 `flash/anki/`：复制 bootloader / 分区表 / 应用 / otadata
       四个部件，逐个**重新计算** size 与 sha256 写回清单，并核对烧写偏移；清单里的
       `version` 必须与应用镜像里 esp_app_desc_t 的版本一致，因此脚本可以自证。
+      生成分两步：先写同级临时目录，校验通过后才原子替换到目标目录，闸门失败不留半成品。
       重复运行结果相同；`--check` 只校验、不写盘，供 CI 与本地复核使用。
 English: Turn a build package into `flash/anki/`: copy the bootloader, partition table,
       app and otadata parts, recompute every size/SHA-256 from the real bytes, and check
       the flash offsets. The manifest `version` must equal the version inside the app
-      image's esp_app_desc_t, so the bundle proves itself. The run is idempotent and
+      image's esp_app_desc_t, so the bundle proves itself. Generation has two steps: write
+      a sibling temporary directory, verify it, then atomically replace the destination, so
+      a failing gate never leaves a half-valid bundle behind. The run is idempotent and
       `--check` verifies without writing, for CI and local review.
 """
 
@@ -17,8 +20,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import shutil
 import struct
 import sys
+import tempfile
 from pathlib import Path
 
 from verify_flash_bundle import EXPECTED
@@ -329,15 +335,55 @@ def verify(destination: Path, expected_version: str | None = None) -> dict:
     return manifest
 
 
+def publish(staging: Path, destination: Path) -> None:
+    """Move a verified staging bundle into place, one atomic rename per file.
+
+    中文：每个文件只做一次 `os.replace`（同分区内的原子改名），所以目标目录里永远不会
+          出现写了一半的 bin；不属于本 bundle 的文件（例如页面本身）原样保留。
+    English: Each file is moved with a single same-filesystem `os.replace`, so the
+          destination never shows a half-written binary, and files that are not part of
+          the bundle (the page, for instance) are left untouched.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in (*PART_ORDER, "manifest.json"):
+        source = staging / name
+        target = destination / name
+        if target.is_file() and target.read_bytes() == source.read_bytes():
+            # 中文：内容一样就不动它，重复运行的 mtime 保持稳定。
+            # English: Identical content stays put, so repeated runs keep stable mtimes.
+            source.unlink()
+            continue
+        os.replace(source, target)
+
+
 def stage(destination: Path, package: Path | None = None, base_dir: Path | None = None,
           app_image: Path | None = None, version: str | None = None,
           use_default_package: bool = True) -> dict:
-    """Generate the bundle at `destination` and verify what was written."""
+    """Generate the bundle at `destination`, but only publish it once it verifies.
+
+    中文：先在同级临时目录里生成 → 用 verify() 校验 → 通过后才逐文件原子替换到目标目录；
+          任何一步失败都会删掉临时目录，目标目录保持原样，不会留下未通过闸门的半成品。
+    English: Build into a sibling temporary directory, verify there, and only then move the
+          files into the destination. Any failure removes the temporary directory and
+          leaves the destination exactly as it was, so a failed gate never leaves a
+          half-valid bundle behind.
+    """
     parts, resolved_version, _used_package, provenance = resolve_sources(
         package, base_dir, app_image, version, use_default_package)
     manifest = build_manifest(resolved_version, parts)
-    write_bundle(destination, manifest, parts)
-    verify(destination, resolved_version)
+    destination = Path(destination)
+    # 中文：临时目录必须与目标同分区，os.replace 才是原子改名而不是跨盘复制。
+    # English: The staging directory must share the destination's filesystem so that
+    #          os.replace is an atomic rename instead of a cross-device copy.
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}-staging-",
+                                    dir=destination.parent))
+    try:
+        write_bundle(staging, manifest, parts)
+        verify(staging, resolved_version)
+        publish(staging, destination)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     print(f"Anki bundle staged: {destination} (version {resolved_version}, from {provenance})")
     for part in manifest["builds"][0]["parts"]:
         print(f"  {part['path']}: {part['size']} bytes at 0x{part['offset']:x}, "

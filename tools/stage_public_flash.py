@@ -66,6 +66,11 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
         anki_output = output / "anki"
         anki_output.mkdir(parents=True, exist_ok=True)
         shutil.copy2(FLASH / "anki" / "index.html", anki_output / "index.html")
+        # 中文：页面用相对路径 import 浏览器端校验模块，必须一起发布，否则刷机按钮
+        #      点下去只会报错（下面 stage_anki 的闸门也会拦）。
+        # English: The page imports its browser-side verifier by relative path, so it has to
+        #      be published too; without it the install button can only fail.
+        shutil.copy2(FLASH / "anki" / "integrity.js", anki_output / "integrity.js")
         stage_anki(anki_output, base_dir=output)
         verify_anki(anki_output)
         check_anki_bundle(anki_output)

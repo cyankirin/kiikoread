@@ -191,6 +191,24 @@ def check_anki_bundle(folder: Path) -> dict:
     project = image[80:112].split(b"\0")[0].decode("ascii")
     assert version == manifest["version"] and project == "Read_Pico", "bundle version mismatch"
     assert re.fullmatch(r"\d+\.\d+\.\d+(?:-rc\d+(?:\.\d+)?)?", version), "invalid release version"
+    # 中文：页面承诺「刷机前逐个核对 SHA-256」，就必须真的挂上浏览器端校验：页面要加载
+    #       integrity.js 并由它实现 prepareManifest，且校验模块里的偏移/容量不能与烧写计划漂移。
+    # English: The page promises a per-part SHA-256 check before flashing, so it must actually
+    #      wire one: the page loads integrity.js, that module implements the prepareManifest
+    #      hook, and its offsets/capacity must not drift from the flash plan.
+    verifier_path = folder / "integrity.js"
+    assert verifier_path.is_file(), "missing the Anki browser-side verifier (integrity.js)"
+    page = (folder / "index.html").read_text(encoding="utf-8")
+    assert "./integrity.js" in page, "Anki page must load its browser-side verifier"
+    assert "prepareManifest" in page, "Anki page must wire the verify-before-open hook"
+    verifier = verifier_path.read_text(encoding="utf-8")
+    for name, (start, end) in EXPECTED.items():
+        located = re.search(
+            rf"name: '{re.escape(name)}', offset: (0x[0-9a-fA-F]+), limit: (0x[0-9a-fA-F]+)",
+            verifier)
+        assert located, f"browser verifier does not declare {name}"
+        assert int(located.group(1), 16) == start, f"browser verifier offset for {name} drifted"
+        assert int(located.group(2), 16) == end - start, f"browser verifier capacity for {name} drifted"
     for name in ("bootloader.bin", "partitions.bin", "firmware.bin", "ota_data_initial.bin"):
         data = (folder / name).read_bytes()
         print(f"anki/{name}: {len(data)} bytes, SHA256 {hashlib.sha256(data).hexdigest()}")
