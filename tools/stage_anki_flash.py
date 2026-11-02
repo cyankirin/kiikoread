@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""Generate the Anki web-flash bundle (esp-web-tools manifest plus its binaries).
+
+中文：本脚本把构建产物整理成 `flash/anki/`：复制 bootloader / 分区表 / 应用 / otadata
+      四个部件，逐个**重新计算** size 与 sha256 写回清单，并核对烧写偏移；清单里的
+      `version` 必须与应用镜像里 esp_app_desc_t 的版本一致，因此脚本可以自证。
+      重复运行结果相同；`--check` 只校验、不写盘，供 CI 与本地复核使用。
+English: Turn a build package into `flash/anki/`: copy the bootloader, partition table,
+      app and otadata parts, recompute every size/SHA-256 from the real bytes, and check
+      the flash offsets. The manifest `version` must equal the version inside the app
+      image's esp_app_desc_t, so the bundle proves itself. The run is idempotent and
+      `--check` verifies without writing, for CI and local review.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import struct
+import sys
+from pathlib import Path
+
+from verify_flash_bundle import EXPECTED
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PACKAGE = ROOT / "build" / "boards" / "packages" / "pico"
+DEFAULT_DESTINATION = ROOT / "flash" / "anki"
+DEFAULT_BASE_DIR = ROOT / "flash"
+DEFAULT_APP_DIR = ROOT / "firmware"
+BOARD_JSON = ROOT / "boards" / "pico" / "board.json"
+
+# 中文：部件顺序固定，页面与清单都按这个顺序展示。
+# English: Fixed part order, shared by the manifest and the page.
+PART_ORDER = ("bootloader.bin", "partitions.bin", "firmware.bin", "ota_data_initial.bin")
+BASE_PARTS = ("bootloader.bin", "partitions.bin", "ota_data_initial.bin")
+APP_PART = "firmware.bin"
+
+BUNDLE_NAME = "kiikoread · Anki"
+FORK_MARKER = "kiikoread-anki"
+BOARD = "pico"
+PROJECT = "Read_Pico"
+CHIP_FAMILY = "ESP32-S3"
+CHIP_ID = 9                    # ESP32-S3 image header chip id
+APP_DESC_MAGIC = 0xABCD5432    # esp_app_desc_t magic_word
+APP_DESC_MIN = 176             # 4 + 4 + 8 + 32 + 32 + 16 + 16 + 32 + 32 bytes
+
+
+def board_version(board_json: Path = BOARD_JSON) -> str:
+    """Return the version declared by the board description."""
+    return str(json.loads(board_json.read_text(encoding="utf-8"))["version"])
+
+
+def read_app_description(image: bytes) -> dict[str, object]:
+    """Parse the esp_app_desc_t fields the bundle has to agree with."""
+    if len(image) < APP_DESC_MIN:
+        raise SystemExit(f"application image is too small ({len(image)} bytes)")
+    if image[0] != 0xE9:
+        raise SystemExit("application image does not start with the ESP image magic 0xE9")
+    chip = struct.unpack_from("<H", image, 12)[0]
+    if chip != CHIP_ID:
+        raise SystemExit(f"application image targets chip id {chip}, expected {CHIP_ID} (ESP32-S3)")
+    magic = struct.unpack_from("<I", image, 32)[0]
+    if magic != APP_DESC_MAGIC:
+        raise SystemExit("application image has no esp_app_desc_t at offset 32")
+
+    def field(offset: int, size: int) -> str:
+        return image[offset:offset + size].split(b"\0")[0].decode("ascii", "replace")
+
+    return {
+        "version": field(48, 32),
+        "project": field(80, 32),
+        "time": field(112, 16),
+        "date": field(128, 16),
+    }
+
+
+def _package_offsets(manifest: dict) -> dict[str, int]:
+    """Collect the offsets a build package declares, keyed by part file name."""
+    builds = manifest.get("builds")
+    if not isinstance(builds, list) or len(builds) != 1:
+        raise SystemExit("build package manifest must describe exactly one build")
+    parts = builds[0].get("parts")
+    if not isinstance(parts, list):
+        raise SystemExit("build package manifest has no parts list")
+    offsets: dict[str, int] = {}
+    for part in parts:
+        name = part.get("path")
+        offset = part.get("offset")
+        if not isinstance(name, str) or not isinstance(offset, int):
+            raise SystemExit("build package manifest has a malformed part entry")
+        offsets[name] = offset
+    return offsets
+
+
+def resolve_sources(
+    package: Path | None,
+    base_dir: Path | None,
+    app_image: Path | None,
+    version: str | None,
+    use_default_package: bool = True,
+) -> tuple[dict[str, bytes], str, Path | None]:
+    """Load the four parts and the version they belong to.
+
+    中文：优先用本次构建的包（四个部件同源自证）；没有构建包时，三个基础部件从
+          `base_dir`（默认 `flash/`，Pages 部署时传已校验的 `_site`）取，应用镜像
+          从 `firmware/Read_Pico-<版本>.bin` 取——这两个位置都在版本库里。
+    English: Prefer this build's package, where all four parts share one provenance.
+          Without it, take the three base parts from `base_dir` (default `flash/`, or the
+          verified `_site` during a Pages deploy) and the app image from the committed
+          `firmware/Read_Pico-<version>.bin`.
+    """
+    expected_version = version or board_version()
+    chosen_package = package
+    if chosen_package is None and use_default_package and DEFAULT_PACKAGE.is_dir():
+        chosen_package = DEFAULT_PACKAGE
+
+    sources: dict[str, Path] = {}
+    if chosen_package is not None:
+        manifest_path = chosen_package / "manifest.json"
+        if not manifest_path.is_file():
+            raise SystemExit(f"build package has no manifest.json: {chosen_package}")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        package_version = manifest.get("version")
+        # 中文：包里的版本号必须和目标版本一致，否则就是把旧 bin 贴上新版本号。
+        # English: A stale package would silently publish old bytes under a new version.
+        if package_version != expected_version:
+            raise SystemExit(
+                f"build package version {package_version!r} does not match {expected_version!r}")
+        if manifest.get("project") not in (None, PROJECT):
+            raise SystemExit(f"build package project is {manifest.get('project')!r}, expected {PROJECT!r}")
+        # 中文：包里的偏移就是烧写计划；与站点校验表的偏移不一致时直接失败。
+        # English: The package offsets are the flash plan; refuse to differ from the site table.
+        declared = _package_offsets(manifest)
+        for name in PART_ORDER:
+            start = EXPECTED[name][0]
+            if declared.get(name) != start:
+                raise SystemExit(
+                    f"build package offset for {name} is {declared.get(name)!r}, expected 0x{start:x}")
+        for name in PART_ORDER:
+            path = chosen_package / name
+            if not path.is_file():
+                raise SystemExit(f"build package is missing {name}: {chosen_package}")
+            sources[name] = path
+    else:
+        base = base_dir if base_dir is not None else DEFAULT_BASE_DIR
+        for name in BASE_PARTS:
+            path = base / name
+            if not path.is_file():
+                raise SystemExit(
+                    f"missing base part {name} in {base}; run the pico build first "
+                    f"or pass --package/--base-dir")
+            sources[name] = path
+        app = app_image if app_image is not None else DEFAULT_APP_DIR / f"{PROJECT}-{expected_version}.bin"
+        if not app.is_file():
+            raise SystemExit(
+                f"missing application image {app}; build the pico firmware for {expected_version} first")
+        sources[APP_PART] = app
+
+    parts = {name: sources[name].read_bytes() for name in PART_ORDER}
+    for name, data in parts.items():
+        if not data:
+            raise SystemExit(f"part {name} is empty: {sources[name]}")
+        start, end = EXPECTED[name]
+        if len(data) > end - start:
+            raise SystemExit(
+                f"part {name} is {len(data)} bytes, larger than its {end - start} byte region")
+    return parts, expected_version, chosen_package
+
+
+def build_manifest(version: str, parts: dict[str, bytes]) -> dict:
+    """Compose the esp-web-tools manifest from the real part bytes."""
+    desc = read_app_description(parts[APP_PART])
+    if desc["project"] != PROJECT:
+        raise SystemExit(f"application image project is {desc['project']!r}, expected {PROJECT!r}")
+    if desc["version"] != version:
+        raise SystemExit(
+            f"application image version {desc['version']!r} does not match {version!r}; "
+            f"rebuild the firmware instead of relabelling an old image")
+    entries = []
+    for name in PART_ORDER:
+        data = parts[name]
+        entries.append({
+            "path": name,
+            "offset": EXPECTED[name][0],
+            "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        })
+    return {
+        # 中文：页面用 name 区分本 fork 的 Anki 版与官方站点入口。
+        # English: The page uses `name` to tell this fork's Anki image from the official entry.
+        "name": BUNDLE_NAME,
+        "version": version,
+        "board": BOARD,
+        "project": PROJECT,
+        # 中文：刷机不擦除数据，NVS 里的设置与阅读进度保留。
+        # English: Never erase; settings and reading progress in NVS survive the flash.
+        "new_install_prompt_erase": False,
+        "anki_fork": {
+            "fork": FORK_MARKER,
+            "app_version": desc["version"],
+            "build_date": desc["date"],
+            "build_time": desc["time"],
+        },
+        "builds": [{"chipFamily": CHIP_FAMILY, "parts": entries}],
+    }
+
+
+def write_bundle(destination: Path, manifest: dict, parts: dict[str, bytes]) -> None:
+    """Write the binaries and the manifest; identical content is left untouched."""
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in PART_ORDER:
+        target = destination / name
+        data = parts[name]
+        if target.is_file() and target.read_bytes() == data:
+            continue
+        target.write_bytes(data)
+    text = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    manifest_path = destination / "manifest.json"
+    if not manifest_path.is_file() or manifest_path.read_text(encoding="utf-8") != text:
+        manifest_path.write_text(text, encoding="utf-8")
+
+
+def verify(destination: Path, expected_version: str | None = None) -> dict:
+    """Check an existing bundle: offsets, sizes, hashes and app description."""
+    manifest_path = destination / "manifest.json"
+    if not manifest_path.is_file():
+        raise SystemExit(f"no staged bundle at {destination}; run tools/stage_anki_flash.py first")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    version = expected_version or board_version()
+    if manifest.get("version") != version:
+        raise SystemExit(
+            f"staged manifest version {manifest.get('version')!r} does not match {version!r}")
+    if manifest.get("name") != BUNDLE_NAME:
+        raise SystemExit(f"staged manifest name is {manifest.get('name')!r}, expected {BUNDLE_NAME!r}")
+    if manifest.get("project") != PROJECT or manifest.get("board") != BOARD:
+        raise SystemExit("staged manifest does not describe the pico board")
+    if manifest.get("new_install_prompt_erase") is not False:
+        raise SystemExit("staged manifest must keep user data (new_install_prompt_erase false)")
+    fork = manifest.get("anki_fork")
+    if not isinstance(fork, dict) or fork.get("fork") != FORK_MARKER:
+        raise SystemExit("staged manifest is missing the Anki fork marker")
+    builds = manifest.get("builds")
+    if not isinstance(builds, list) or len(builds) != 1:
+        raise SystemExit("staged manifest must describe exactly one build")
+    if builds[0].get("chipFamily") != CHIP_FAMILY:
+        raise SystemExit(f"staged manifest chip family must be {CHIP_FAMILY}")
+    parts = builds[0].get("parts")
+    if not isinstance(parts, list) or len(parts) != len(PART_ORDER):
+        raise SystemExit(f"staged manifest must list {len(PART_ORDER)} parts")
+
+    binaries: dict[str, bytes] = {}
+    for part in parts:
+        name = part.get("path")
+        if name not in PART_ORDER or name in binaries:
+            raise SystemExit(f"unexpected flash part {name!r}")
+        start, end = EXPECTED[name]
+        if part.get("offset") != start:
+            raise SystemExit(f"wrong offset for {name}: {part.get('offset')!r}, expected 0x{start:x}")
+        path = destination / name
+        if not path.is_file():
+            raise SystemExit(f"staged bundle is missing {name}")
+        data = path.read_bytes()
+        if not data or len(data) > end - start:
+            raise SystemExit(f"invalid size for {name}: {len(data)} bytes")
+        if part.get("size") != len(data):
+            raise SystemExit(f"size mismatch for {name}: manifest {part.get('size')}, file {len(data)}")
+        digest = hashlib.sha256(data).hexdigest()
+        if part.get("sha256") != digest:
+            raise SystemExit(f"sha256 mismatch for {name}")
+        binaries[name] = data
+    missing = [name for name in PART_ORDER if name not in binaries]
+    if missing:
+        raise SystemExit(f"staged manifest is missing parts: {', '.join(missing)}")
+
+    desc = read_app_description(binaries[APP_PART])
+    if desc["version"] != version or desc["project"] != PROJECT:
+        raise SystemExit(
+            f"application image is {desc['project']} {desc['version']}, expected {PROJECT} {version}")
+    if fork.get("app_version") != desc["version"]:
+        raise SystemExit("staged manifest app_version does not match the application image")
+    return manifest
+
+
+def stage(destination: Path, package: Path | None = None, base_dir: Path | None = None,
+          app_image: Path | None = None, version: str | None = None,
+          use_default_package: bool = True) -> dict:
+    """Generate the bundle at `destination` and verify what was written."""
+    parts, resolved_version, used_package = resolve_sources(
+        package, base_dir, app_image, version, use_default_package)
+    manifest = build_manifest(resolved_version, parts)
+    write_bundle(destination, manifest, parts)
+    verify(destination, resolved_version)
+    source = used_package if used_package is not None else (base_dir or DEFAULT_BASE_DIR)
+    print(f"Anki bundle staged: {destination} (version {resolved_version}, parts from {source})")
+    for part in manifest["builds"][0]["parts"]:
+        print(f"  {part['path']}: {part['size']} bytes at 0x{part['offset']:x}, "
+              f"SHA256 {part['sha256']}")
+    fork = manifest["anki_fork"]
+    print(f"  built {fork['build_date']} {fork['build_time']} (device time of the build)")
+    return manifest
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("destination", nargs="?", type=Path, default=DEFAULT_DESTINATION,
+                        help="bundle directory (default: flash/anki)")
+    parser.add_argument("--package", type=Path,
+                        help="build package directory (default: build/boards/packages/pico when present)")
+    parser.add_argument("--no-package", action="store_true",
+                        help="ignore the build package and assemble from --base-dir/--app-image "
+                             "(the same path CI takes when no build output is available)")
+    parser.add_argument("--base-dir", type=Path,
+                        help="fallback source of bootloader/partitions/otadata (default: flash/)")
+    parser.add_argument("--app-image", type=Path,
+                        help="fallback application image (default: firmware/Read_Pico-<version>.bin)")
+    parser.add_argument("--version", help="expected firmware version (default: boards/pico/board.json)")
+    parser.add_argument("--check", action="store_true",
+                        help="verify the staged bundle without writing anything")
+    args = parser.parse_args(argv)
+
+    expected_version = args.version or board_version()
+    if args.check:
+        manifest = verify(args.destination, expected_version)
+        parts = manifest["builds"][0]["parts"]
+        print(f"Anki bundle OK: {args.destination} (version {manifest['version']}, "
+              f"{len(parts)} parts, data preserved)")
+        for part in parts:
+            print(f"  {part['path']}: {part['size']} bytes at 0x{part['offset']:x}, "
+                  f"SHA256 {part['sha256']}")
+        return 0
+    stage(args.destination, None if args.no_package else args.package, args.base_dir,
+          args.app_image, expected_version, use_default_package=not args.no_package)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

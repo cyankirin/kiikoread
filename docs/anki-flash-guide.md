@@ -1,14 +1,17 @@
 # Anki 学习功能 · 刷机与使用说明
 
-本分支在 **kiikoread 官方 rc103** 基础上移植了 Anki 卡组学习功能，版本号 **0.3.3-rc103.01**。
+本分支在 **kiikoread 官方 rc104** 基础上移植了 Anki 卡组学习功能，版本号 **0.3.3-rc104.01**。
 
-固件文件：固件随仓库提供 —— [`firmware/Read_Pico-0.3.3-rc103.01.bin`](../firmware/Read_Pico-0.3.3-rc103.01.bin)（**当前可用来源**，只烧应用分区 0x10000）。若本仓库的 **Releases** 页面发布了对应版本，优先使用 Release 附件（含版本说明）；需要回滚时可用 [`firmware/Read_Pico-0.3.3-rc102.01.bin`](../firmware/Read_Pico-0.3.3-rc102.01.bin) 或 [`firmware/Read_Pico-0.3.3-rc100.02.bin`](../firmware/Read_Pico-0.3.3-rc100.02.bin)。
+固件文件：固件随仓库提供 —— [`firmware/Read_Pico-0.3.3-rc104.01.bin`](../firmware/Read_Pico-0.3.3-rc104.01.bin)（**当前可用来源**，只烧应用分区 0x10000）。若本仓库的 **Releases** 页面发布了对应版本，优先使用 Release 附件（含版本说明）；需要回滚时可用 [`firmware/Read_Pico-0.3.3-rc103.01.bin`](../firmware/Read_Pico-0.3.3-rc103.01.bin)、[`firmware/Read_Pico-0.3.3-rc102.01.bin`](../firmware/Read_Pico-0.3.3-rc102.01.bin) 或 [`firmware/Read_Pico-0.3.3-rc100.02.bin`](../firmware/Read_Pico-0.3.3-rc100.02.bin)。
+
+> **更省事的方式（网页刷机）**：用电脑上的 Chrome 或 Edge 打开 <https://cyankirin.github.io/kiikoreader-anki/anki/>，数据线连接墨水屏后一键刷入 —— 引导程序、分区表、应用与启动槽标记一次写完，**默认保留设备数据**（不擦除，设置与阅读进度不丢），刷完无需恢复出厂、也无需还原配置。本页只是入口，写盘由浏览器（WebSerial）完成，需要 HTTPS 环境。
+> 仍然想手动控制每一次写入，或想先回到干净的官方基线，就按下面的三步走。
 
 ---
 
 ## 一、刷机步骤
 
-> 顺序不能颠倒：先保存配置 → 用官方 **rc103** 把设备恢复到干净基线 → 覆盖应用分区 → 恢复出厂 → （可选）还原配置。
+> 顺序不能颠倒：先保存配置 → 用官方 **rc104** 把设备恢复到干净基线 → 覆盖应用分区 → 恢复出厂 → （可选）还原配置。
 
 ### 第 0 步（前提）：先保存配置
 
@@ -23,23 +26,23 @@
 > ⚠️ 备份文件含 WiFi 密码，请妥善保管 TF 卡。
 > 刷完第 3 步（恢复出厂）后，用同一页面的 **「从 TF 卡恢复配置」** 即可把设置、阅读记录和书签还原回来。
 
-### 第 1 步：线刷官方（厂长）固件 **rc103**
+### 第 1 步：线刷官方（厂长）固件 **rc104**
 
-用 USB 线把设备接到电脑，按官方 rc103 的刷机方式完整刷入一次：
+用 USB 线把设备接到电脑，按官方 rc104 的刷机方式完整刷入一次：
 
-- 官方发布页：<https://github.com/wegooo-cell/read-pico-reader/releases/tag/v0.3.3-rc103>
-- 完整刷入（含 bootloader / 分区表 / otadata），确保设备停在 **rc103** 基线
-- 刷完在设备「设置 → 当前版本」确认显示 `0.3.3-rc103`
+- 官方发布页：<https://github.com/wegooo-cell/read-pico-reader/releases/tag/v0.3.3-rc104>
+- 完整刷入（含 bootloader / 分区表 / otadata），确保设备停在 **rc104** 基线
+- 刷完在设备「设置 → 当前版本」确认显示 `0.3.3-rc104`
 
-> 基线选 rc103 是因为本应用就是用 rc103 源码编的（版本号 `0.3.3-rc103.01`），基线与应用同源。
-> **若手上只有 rc100 或 rc102 也可直接使用**：rc100 / rc102 / rc103 的 Pico 分区表逐行相同（`ota_0` 在 `0x10000`、4 MB；`storage` 在 `0x410000`；`ota_1` 在 `0x910000`；`otadata` 在 `0xD10000`），本固件只写 `0x10000` 应用分区，不影响引导与分区。
+> 基线选 rc104 是因为本应用就是用 rc104 源码编的（版本号 `0.3.3-rc104.01`），基线与应用同源。
+> **若手上只有 rc100 或 rc102 也可直接使用**：rc100 / rc102 / rc103 / rc104 的 Pico 分区表逐行相同（`ota_0` 在 `0x10000`、4 MB；`storage` 在 `0x410000`；`ota_1` 在 `0x910000`；`otadata` 在 `0xD10000`），本固件只写 `0x10000` 应用分区，不影响引导与分区。
 
 ### 第 2 步：用 Flash Download Tool 覆盖应用分区
 
 打开乐鑫 **Flash Download Tool**（Espressif Flash Download Tool）：
 
 1. ChipType 选择 **ESP32-S3**，WorkMode 选择 **Develop**，加载模式选默认；
-2. 在下载列表第一行选择本仓库的 `Read_Pico-0.3.3-rc103.01.bin`，**地址填 `0x10000`**；
+2. 在下载列表第一行选择本仓库的 `Read_Pico-0.3.3-rc104.01.bin`，**地址填 `0x10000`**；
 3. 波特率建议 `921600`（不稳就降到 `460800`），选择设备串口后点击 **START**；
 4. 等待 `FINISH`，设备会自动重启。
 
@@ -48,7 +51,7 @@
 ```bash
 python -m esptool --chip esp32s3 -p COM3 -b 460800 \
   write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB \
-  0x10000 Read_Pico-0.3.3-rc103.01.bin
+  0x10000 Read_Pico-0.3.3-rc104.01.bin
 ```
 
 > ⚠️ 只写 `0x10000` 这一个地址，不要动 bootloader（0x0）、分区表（0x8000）、otadata（0xd10000）。
@@ -103,6 +106,6 @@ TF 卡根/
 
 ## 四、许可与声明
 
-- 本固件基于 **kiikoread rc103** 二次开发，仅用于个人学习用途；新增原创内容适用 [个人学习许可](../licenses/kiikoread-Personal-Study-1.0.txt)，未经书面授权不得商用。
+- 本固件基于 **kiikoread rc104** 二次开发，仅用于个人学习用途；新增原创内容适用 [个人学习许可](../licenses/kiikoread-Personal-Study-1.0.txt)，未经书面授权不得商用。
 - 设备与固件原始版权归 kiikoread / MindReset 项目与各自权利人所有。
-- 刷机有风险，请自行确认设备型号与分区布局；因刷机导致的设备异常需自行恢复（可回到官方 **rc100/rc102/rc103** 完整线刷）。
+- 刷机有风险，请自行确认设备型号与分区布局；因刷机导致的设备异常需自行恢复（可回到官方 **rc100/rc102/rc103/rc104** 完整线刷）。

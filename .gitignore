@@ -133,6 +133,17 @@ Desktop.ini
 !flash/metalio/releases/*/bootloader.bin
 !flash/metalio/releases/*/partitions.bin
 !flash/metalio/releases/*/ota_data_initial.bin
+# 网页刷机入口 /anki/ 的清单与 bin 是构建产物：manifest 里每个部件都记着 size 与
+# sha256，每次构建都会变；入库会与真正发布的字节脱轨（rc103.01 就踩过版本化副本
+# 没刷新的坑）。因此由 CI 在部署前用 tools/stage_anki_flash.py 现场生成，只把页面
+# index.html 入库。
+# / The /anki/ manifest and binaries are build products: every part's size and SHA-256
+#   inside the manifest changes with each build, and a committed copy drifts away from
+#   the bytes that are actually deployed (the rc103.01 stale versioned copy did exactly
+#   that). CI regenerates them with tools/stage_anki_flash.py before deploying; only the
+#   page itself, index.html, is tracked.
+/flash/anki/*.bin
+/flash/anki/manifest.json
 sdkconfig.bak*
 sdkconfig.bak-*
 # 每块板各一份 sdkconfig（board.cmake 里写的是 sdkconfig.<board>）。

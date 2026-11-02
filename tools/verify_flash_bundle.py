@@ -80,6 +80,16 @@ def check_archived_releases(folder: Path, current_partitions: Path | None = None
     return catalog["releases"]
 
 
+def _partition_table(table: bytes) -> dict[str, tuple[int, int, int, int]]:
+    """Decode the ESP32 partition table image into label -> (kind, subtype, address, size)."""
+    entries: dict[str, tuple[int, int, int, int]] = {}
+    for offset in range(0, len(table) - 31, 32):
+        magic, kind, subtype, address, size, label, _ = struct.unpack_from("<HBBII16sI", table, offset)
+        if magic != 0x50aa: break
+        entries[label.split(b"\0")[0].decode()] = (kind, subtype, address, size)
+    return entries
+
+
 def check(folder: Path) -> None:
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.get("new_install_prompt_erase") is True, "flasher must preserve user data"
@@ -103,12 +113,7 @@ def check(folder: Path) -> None:
     assert seen == set(EXPECTED)
     # 升级兼容性门禁：实际双槽分区、应用描述、基础包能力及升级 SHA 必须一致。
     # Upgrade gate: real slots, app description, base capability and upgrade SHA must agree.
-    entries = {}
-    table = (folder / "partitions.bin").read_bytes()
-    for offset in range(0, len(table) - 31, 32):
-        magic, kind, subtype, address, size, label, _ = struct.unpack_from("<HBBII16sI", table, offset)
-        if magic != 0x50aa: break
-        entries[label.split(b"\0")[0].decode()] = (kind, subtype, address, size)
+    entries = _partition_table((folder / "partitions.bin").read_bytes())
     assert entries.get("ota_0") == (0, 16, 0x10000, 0x400000), "base OTA slot changed"
     assert entries.get("ota_1") == (0, 17, 0x910000, 0x400000), "inactive OTA slot changed"
     assert entries.get("otadata") == (1, 0, 0xd10000, 0x2000), "OTA selection metadata changed"
@@ -141,6 +146,56 @@ def check(folder: Path) -> None:
     assert (folder / "vendor/web/install-button.js").is_file()
     assert (folder / "licenses/LUCIDE-ISC.txt").is_file()
     check_archived_releases(folder)
+
+
+def check_anki_bundle(folder: Path) -> dict:
+    """Validate the fork's Anki web-flash bundle: same layout, user data preserved.
+
+    中文：本 fork 的 Anki 版入口写同一套双槽布局，但**不**擦除数据，所以「擦除提示」
+         的极性相反；偏移、大小、哈希、分区表与应用描述的校验与官网包同样严格。
+    English: The fork's Anki entry writes the same dual-slot layout but must never erase
+         data, so the erase-prompt polarity is inverted; every offset, size, hash,
+         partition-table and app-description check stays as strict as the official bundle.
+    """
+    manifest_path = folder / "manifest.json"
+    assert manifest_path.is_file(), "missing Anki flash manifest"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest.get("new_install_prompt_erase") is False, "Anki bundle must preserve user data"
+    builds = manifest.get("builds")
+    assert isinstance(builds, list) and len(builds) == 1, "one build expected"
+    assert builds[0].get("chipFamily") == "ESP32-S3", "wrong target chip"
+    parts = builds[0].get("parts")
+    assert isinstance(parts, list) and len(parts) == len(EXPECTED), "wrong number of flash parts"
+    seen: set[str] = set()
+    for part in parts:
+        name = part.get("path")
+        assert name in EXPECTED and name not in seen, f"unexpected flash part: {name}"
+        seen.add(name)
+        start, end = EXPECTED[name]
+        assert part.get("offset") == start, f"wrong offset for {name}"
+        data = (folder / name).read_bytes()
+        assert data and len(data) <= end - start, f"invalid size for {name}"
+        assert part.get("size") == len(data), f"declared size mismatch: {name}"
+        assert part.get("sha256") == hashlib.sha256(data).hexdigest(), f"manifest integrity mismatch: {name}"
+    assert seen == set(EXPECTED), "missing flash parts"
+    entries = _partition_table((folder / "partitions.bin").read_bytes())
+    assert entries.get("ota_0") == (0, 16, 0x10000, 0x400000), "app slot changed"
+    assert entries.get("ota_1") == (0, 17, 0x910000, 0x400000), "inactive OTA slot changed"
+    assert entries.get("otadata") == (1, 0, 0xd10000, 0x2000), "OTA selection metadata changed"
+    assert entries.get("nvs") == (1, 2, 0x9000, 0x5000), "user settings partition changed"
+    assert entries.get("storage") == (1, 129, 0x410000, 0x500000), "user storage partition changed"
+    image = (folder / "firmware.bin").read_bytes()
+    assert image[0] == 0xe9 and struct.unpack_from("<H", image, 12)[0] == 9, "wrong target chip"
+    assert struct.unpack_from("<I", image, 32)[0] == 0xabcd5432, "missing app description"
+    version = image[48:80].split(b"\0")[0].decode("ascii")
+    project = image[80:112].split(b"\0")[0].decode("ascii")
+    assert version == manifest["version"] and project == "Read_Pico", "bundle version mismatch"
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:-rc\d+(?:\.\d+)?)?", version), "invalid release version"
+    for name in ("bootloader.bin", "partitions.bin", "firmware.bin", "ota_data_initial.bin"):
+        data = (folder / name).read_bytes()
+        print(f"anki/{name}: {len(data)} bytes, SHA256 {hashlib.sha256(data).hexdigest()}")
+    print(f"Anki web bundle verified: {version} (data preserved, dual-slot layout unchanged)")
+    return manifest
 
 
 if __name__ == "__main__":
