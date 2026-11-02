@@ -10,6 +10,30 @@ Newcomers (human or agent): read [docs/ONBOARDING.md](docs/ONBOARDING.md). Takin
 
 ## 当前工作：双板型本地整合 / Current work: local multi-board integration
 
+用户2026-11-01明确要求推送在线刷机：本轮正式发布Pico rc104与S31 rc109，包含此前已测试的合并、书架及阅读交互修复和Pico普通翻页信息栏分离；同步GitHub Release、kiikoread.com与既有Pages OTA，保留rc103/rc108原字节及上一版本刷机/TF入口。本次指令取代本轮此前仅本地、不发布的限制。
+User2026-11-01 explicitly authorizes online publication: release Pico rc104/S31 rc109 with the tested merges, shelf/reader fixes and Pico ordinary-turn metadata separation. Synchronize GitHub Releases, kiikoread.com and existing Pages OTA; retain original rc103/rc108 bytes and previous-version web/TF entries. This supersedes the earlier local-only restriction for this release.
+
+用户2026-11-01追加：Pico普通翻页的信息栏对齐水波纹/速读，正常正文和图文翻页只输出阅读内容区域，顶部状态/标题和底部章节进度不再跟随擦白；页脚停下800ms后局刷。此要求取代PR55/62在Pico的信息栏合并范围，正文派生波形、手动/周期/入书清理及S31保持。
+User2026-11-01 follow-up: align Pico ordinary metadata with ripple/Fast BW. Ordinary text/image turns present the reading-content region, excluding top status/title and bottom chapter/progress; update the footer after800ms idle. This supersedes PR55/62's Pico metadata scan extent, retaining body waveforms, manual/periodic/entry cleanup and S31 behavior.
+
+用户2026-11-01追加：底部上滑回到非全屏并显示底部工具栏；顶部先显示时间、签名、电量，下一行恢复返回键、书名及收藏操作。进入书籍的非全屏也使用此布局；上方返回/书名/收藏与底部工具栏共同出现，进入全屏共同收起，所有工具栏入口先退出全屏。全屏关闭沉浸时仍只有状态栏，不显示书名。
+User2026-11-01 follow-up: bottom swipes return to standard mode with bottom tools, a time/signature/battery row, then Back/book title/Favorite. Standard book entry shares this layout. Back/title/Favorite and bottom tools appear together and hide together on fullscreen entry; every tools entry first leaves fullscreen. Nonimmersive fullscreen retains its status-only header.
+
+用户2026-11-01追加：全屏且关闭“全屏沉浸”时，顶部恢复时间、状态栏签名与电量，不再显示书名；预留完整状态栏，分钟更新与缓存翻页沿用原状态栏路径。沉浸开启时继续保留原铺屏样式。
+User2026-11-01 follow-up: fullscreen with immersion off shows time, status signature and battery instead of the book title. Reserve the complete status row and retain its existing minute/cached-turn updates; immersion on retains the existing full-page style.
+
+用户2026-11-01明确要求直接合并新PR65、66、67：采用GIF首帧、脚注卡片及JPEGDEC兜底，补齐解码边界和脚注状态回滚验证；保留当前书架、阅读手势和已确认的双板波形，不发布官网固件。
+User2026-11-01 explicitly approves merging new PR65/66/67: GIF first frames, footnote cards and JPEGDEC fallback, with decoder boundary and footnote rollback checks. Preserve current shelf/reader gestures and approved board waveforms; do not publish website firmware.
+
+用户2026-11-01明确要求直接合并PR61、62、64并按照作者实现：EPUB兼容按PR61，Pico/S31阅读输出按PR62，S31裁剪及补黑按PR64。此指令取代PR59/55在对应派生波形文件上的固定限制；原始表、板型隔离和供电/睡眠保护继续保留。界面与阅读交互保留本机最新改动，测试和基线按实际合入代码同步，不私自改写作者波形。
+User2026-11-01 explicitly approves merging PR61/62/64 as authored: PR61 EPUB compatibility, PR62 Pico/S31 reader output, and PR64 S31 trimming/black boost. This supersedes PR59/55 pins for the affected derived-waveform files; retain raw tables, board isolation and power/sleep protections. Preserve the latest local UI/reader interactions; align tests/baselines without silently rewriting the author's waveforms.
+
+用户2026-11-01确认书架管理预览并要求修改固件：沿用文件管理搜索/分页，列表和图标切换，数量、书架排序与选择同排；长按书籍或点击选择才显示圆形标记及删除书籍/清理进度/移出书架/返回。排序标识改为“书架排序”，不再显示来源筛选；分页和排序保留选择。暂不交付测试包，不合并仅要求审查的PR。
+User2026-11-01 approves implementing the management preview: file-style search/paging, list/grid switching, count/order/select on one row; long presses or Select reveal circular marks and delete/clear/remove/back actions. Label the sort “书架排序”, remove source filtering, retain selections over paging/sorting. No test bundle yet; review-only PR requests do not authorize merging.
+
+用户2026-11-01要求：开书为非全屏，顶部时间/签名/电量，章节与进度置于底部工具栏上方，工具栏进入即显示；中间单击只进入全屏，底部上滑退出全屏并显示工具栏；原全屏两种样式和硬件波形保留。
+User2026-11-01: open standard with time/signature/battery and chapter/progress above visible tools; centre taps only enter fullscreen, bottom swipes leave it and show tools; retain both fullscreen styles and native waveforms.
+
 用户2026-10-31再次明确：网页刷机只在kiikoread.com，保留原有GitHub首页跳转；GitHub Pages仍仅承担既有默认OTA来源，不新增独立备用刷机入口。
 User2026-10-31 reconfirms kiikoread.com as the only web-flashing entry; retain the existing GitHub homepage redirect and the existing Pages OTA origin.
 
@@ -167,7 +191,7 @@ Defined in [`main/app/app.h`](main/app/app.h). The loop presents via `app_presen
 - `on_power_short()` 可选：页面可消费电源键短按；返回 `APP_REDRAW_NONE` 时主循环继续锁屏。阅读正文的“电源键翻页”开关开启后短按翻下一页，长按由主循环锁屏；其他页面保留原电源键逻辑。/ Optional short-power callback may consume the press; `APP_REDRAW_NONE` keeps the lock path. With reader power-turn enabled, short presses advance in the reader body and long presses lock; other pages keep their usual power behavior.
 - `on_media_ready()` 可选：首次插卡、显式重挂或Pico后台恢复完成时通知当前页面更新目录；不得绕过失效后的句柄清理。/ Optional callback refreshes page listings after insertion, explicit remount or Pico background recovery; it must not bypass handle cleanup after invalidation.
 - `on_gesture()` 可选；提供后不再接收 `on_touch()`。主循环负责识别与全局中断取消，页面解释动作。/ Optional gesture callback replaces `on_touch`; the loop recognizes and cancels, the page interprets.
-- `on_key()` 默认只收 `UI_KEY_1`；`owns_keys` 页面在菜单关闭时接收三键。主页面按用户2026-10-16修订：左右键循环切换四个主页，中键长按全刷；书架中键短按切换分页控制并沿左右箭头轮廓描边，可通过导航随时打断。系统子页仍左返回、中首页、右返回；阅读正文三键短按可自定义，两套推荐默认上一页/工具栏/下一页；底部上滑固定呼出工具栏，三键短按和中键长按不强制工具栏映射；中键长按可自定义，默认返回首页，用户2026-10-30改为中间单击切换全屏，沉浸偏好独立控制全屏样式；新开书默认标准模式及底部工具栏，不画进度信息，翻页保留模式；沉浸模式左上书名、下方章节和百分比及贴边进度。/ Normally KEY1 only; `owns_keys` pages receive all three outside the menu. Product system pages use Back/Home/Back; reader short actions are configurable, defaulting to previous/tools/next; bottom-edge swipes always open the toolbar without a required short/hold mapping; middle holds are configurable and default to home the user revised this on 2026-10-30: centre taps toggle fullscreen independently of the saved immersive style; new books open standard with tools and no footer metadata, turns retain the mode, and immersive reading has a top-left title and edge chapter/percentage/progress.
+- `on_key()` 默认只收 `UI_KEY_1`；`owns_keys` 页面在菜单关闭时接收三键。主页面按用户2026-10-16修订：左右键循环切换四个主页，中键长按全刷；书架中键短按切换分页控制并沿左右箭头轮廓描边，可通过导航随时打断。系统子页仍左返回、中首页、右返回；阅读正文三键短按可自定义，两套推荐默认上一页/工具栏/下一页；底部上滑固定呼出工具栏，三键短按和中键长按不强制工具栏映射；中键长按可自定义，默认返回首页，用户2026-11-01改为中间单击只进入全屏；底部上滑退出全屏并显示工具栏。新开书默认非全屏，顶部时间/签名/电量，工具栏上方显示章节/进度；工具栏进入即显示，翻页保留模式。原全屏两种样式保留。/ Normally KEY1 only; `owns_keys` pages receive all three outside the menu. Product system pages use Back/Home/Back; reader short actions are configurable, defaulting to previous/tools/next; bottom-edge swipes always open the toolbar without a required short/hold mapping; middle holds are configurable and default to home the user revised this on 2026-11-01: centre taps only enter fullscreen; bottom swipes exit and show tools. Standard entry shows time/signature/battery and chapter/progress above visible tools. Turns retain the mode; both existing fullscreen styles remain.
 
 标志：
 

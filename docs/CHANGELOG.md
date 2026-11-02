@@ -1,5 +1,77 @@
 # 版本变更 / Changelog
 
+## 0.3.3-rc104.01 / 2026-11-02
+
+- 合并上游 rc104（Pico `0.3.3-rc104` / Metalio S31 `0.3.3-rc109` 的在线资源），版本号 `0.3.3-rc104.01`。上游改动按新布局落在 Pico 视图（`boards/pico/src/`）与共享 `main/`，本 fork 的 Anki 与字体改动（`app_font_allow_user_choice`、行盒与 descender 度量、控制台只编到 ERROR、PSRAM 不足时暂停首页组件）在合并后全部保留。
+  Merge upstream rc104 (the online assets for Pico `0.3.3-rc104` / Metalio S31 `0.3.3-rc109`) and bump the local version to `0.3.3-rc104.01`. Upstream edits land in the Pico view (`boards/pico/src/`) and the shared `main/`; every Anki and font change of this fork (`app_font_allow_user_choice`, line-box and descender metrics, ERROR-only console logs, home widgets pausing when PSRAM runs short) survives the merge.
+- 新增网页刷机入口 `/anki/`：Chrome/Edge + HTTPS 打开即用，一次写入 bootloader、分区表与应用，默认保留用户数据。manifest 与 bin 由 CI 在部署前现场生成，不入库。
+  New web-flash entry at `/anki/`: open it in Chrome/Edge over HTTPS and it writes bootloader, partition table and app in one go, keeping user data by default. The manifest and binaries are generated in CI right before deployment and are never committed.
+- 分区表布局、刷机四步与 `0x10000` 地址不变；`0.3.3-rc100.02`、`0.3.3-rc102.01`、`0.3.3-rc103.01` 三个镜像继续保留，可随时回退。
+  The partition layout, the four flashing steps and the `0x10000` address are unchanged; the `0.3.3-rc100.02`, `0.3.3-rc102.01` and `0.3.3-rc103.01` images stay available for rollback.
+
+## Pico 0.3.3-rc104 / Metalio S31 0.3.3-rc109 — 2026-11-01
+
+保留上一正式版Pico rc103与S31 rc108的原版刷机和TF下载入口；网页刷机仍仅kiikoread.com，沿用兼容双槽布局及默认保留设置。
+Retain original Pico rc103/S31 rc108 web/TF entries, kiikoread.com as the sole web flasher, compatible dual slots and data preservation by default.
+
+### 阅读状态栏 / Reader status bar
+
+- 修复从目录或设置返回后，常驻阅读工具栏可见但点击无反应；工具栏绘制、命中与操作共用可见状态。
+  Fix inert persistent tools after returning from TOC or settings by sharing toolbar visibility across paint, hit testing and actions.
+
+- 底部上滑返回非全屏后，状态栏下恢复返回键、书名及收藏行，底部显示工具栏；新开书使用相同非全屏布局。返回保存阅读进度，收藏操作保留失败提示，切换保留阅读锚点。
+  Bottom swipes return to standard mode with Back/title/Favorite below status and tools at the bottom; book entry shares this layout. Back saves progress, failed favorite saves remain visible, and mode changes preserve the reading anchor.
+
+- 关闭“全屏沉浸”时，全屏顶部恢复时间、状态栏签名及电量，不再显示书名；顶部预留完整状态栏，支持原有分钟更新。底部章节与进度、全屏沉浸开启时的铺屏样式保持。
+  With fullscreen immersion off, show time, status signature and battery instead of the book title, reserving the complete status row with existing minute updates. Retain bottom chapter/progress and the immersion-on full-page style.
+
+### 书架管理 / Bookshelf management
+
+- 选择模式底栏的删除书籍、清理进度、移出书架图标统一使用黑色，修复刚进入选择时图标过浅的问题。
+  Use black for Delete, Clear progress and Remove from shelf icons in the selection footer, fixing pale icons on entry.
+
+- 书架管理对齐文件管理：常驻搜索、书籍数量、「书架排序」与选择，右上切换列表/图标，移除来源筛选。普通点按开书；长按或点击选择才出现圆形标记及删除书籍、清理进度、移出书架、返回四项操作。分页、排序和切换视图保留选择；批量操作继续确认，返回先退出选择。
+  Align management with Files: search, count, Shelf order, Select and a list/grid toggle, without a source filter. Normal taps open books; holds or Select reveal circular marks and delete/clear/remove/back actions. Paging, sorting and view changes retain selections; batch actions still require confirmation and Back leaves selection first.
+- 分页复用文件管理的首页、上一页、下一页、末页控件；列表每页五本、图标每页六本，两板共享绘制与命中几何，不调整阅读波形。
+  Reuse the Files first/previous/next/last pager; five list or six grid books per page, with shared paint/hit geometry on both boards and unchanged reader waveforms.
+
+### 插图、脚注与兼容 / Illustrations, footnotes and compatibility
+
+- 部分大尺寸或带 Exif 的 JPEG 插图在 ROM 解码器失败时改用 JPEGDEC 小平面兜底解码，避免整页插图缺失。
+  Large or Exif JPEG illustrations now fall back to a 1/2..1/8 JPEGDEC plane when the ROM decoder fails, so pages no longer lose their artwork.
+
+
+- EPUB 正文内嵌 GIF 现在按首帧显示（透明背景合成白底），不再报“此插图暂无法显示”。
+  Inline EPUB GIFs now render their first frame with transparency composited on white instead of failing.
+- 修正 GIF 截断头、缺失像素及画布外偏移的解码边界；脚注重排失败保留旧章数据，设置面板优先响应点击。
+  Reject truncated GIF headers/pixels and clip off-canvas frames; retain old notes on failed chapter reflow and prioritize settings-panel taps.
+
+- EPUB 脚注改为弹窗：点正文注号在原处附近弹卡片显示注释，不再跳到章末；注号图标按书内 CSS 行内排进句子，卡片字号比正文小 5px 并跟随当前阅读字体。
+  EPUB footnotes become a popup card anchored near the marker instead of jumping to the chapter end; inline 1em markers follow the book CSS, and the card uses the reading font at body size minus 5 px.
+
+
+- 阅读默认非全屏，顶部恢复时间、签名和电量，章节与进度放在工具栏上方；进入即显示工具栏。中间单击只进入全屏，底部上滑退出全屏并显示工具栏，保留阅读锚点及原全屏样式。
+  Standard reading restores time/signature/battery with chapter/progress above visible tools. Centre taps only enter fullscreen; bottom swipes return to standard with tools, preserving the reading anchor and both fullscreen styles.
+
+### 阅读翻页擦白 / Reader turn erase
+
+- Pico普通及图文翻页只对阅读内容区执行原GL16，顶部状态/标题与底部章节、百分比、进度条不再每页跟着擦白；三种模式均在停下800ms后局刷页脚，保留入书、手动和周期清理。
+  Pico ordinary/image turns keep their GL16 within reading content, avoiding per-turn erasure of status/title and chapter/percentage/progress. All three modes defer footer updates until800ms idle; retain entry/manual/periodic cleanup.
+
+- Pico 普通/图文翻页保留整屏 GL16 白刷，定稿保持前变白相由 4 相增至 12 相并补 4 相重推黑；水波纹保持 4 相，手动/周期全刷不变。
+  Pico ordinary/image turns keep the whole-panel GL16 erase, growing the changed-white phases from four to twelve plus four black re-drive phases before the settle holds; the ripple keeps four and manual/periodic refresh is unchanged.
+
+- S31 阅读翻页恢复 PR59 的整屏输出：普通、图文、水波纹、速读都按整屏区域提交，顶栏与页脚同轮擦白，不再沿用 PR60 的正文裁剪导致上下积灰；普通翻页派生波形擦白由 4 相增至 8 相（GL37 原表已含六相目标白），原厂 GC48/GL48/DU20 表不改。
+  S31 reader turns restore the PR59 whole-screen presentation: ordinary, image, ripple and Fast BW all present the full screen so the status bar and footer are erased in the same pass instead of accumulating ghost from PR60's body crop; the ordinary derived waveform grows from four to eight white phases (the GL37 table already carries six white-target phases), with the vendor GC48/GL48/DU20 tables untouched.
+
+### S31 灰阶裁剪 / S31 gray-table trimming
+
+- S31 默认灰阶表改用与 Pico 相同的裁剪参数（GC36/GL37，erase 11 / sat 5 / white_sat 0 / hold 3），原始 48 相表层仍完整保留，开关置 0 即回退；不跨屏搬运 Pico 的 A01 表数据。
+  S31 switches its default gray tables to Pico's trim profile (GC36/GL37 with erase 11 / sat 5 / white_sat 0 / hold 3); the original 48-phase tables stay intact and the switch can be set back to 0. Pico's A01 table data is not copied across panels.
+
+- 裁剪会砍短黑目标饱和段，强光下黑字发淡；新增“保持相之前补压黑”（只写目标黑行，不增加相数），保留末尾 3 相 hold 作黑固定，应用到 GC16/GL16/完整 GL16 与文字翻页表，保持裁剪后的翻页速度。
+  Trimming shortens the black-target saturation run and leaves pale ink in strong light; extra darken pulses are inserted just before the trailing hold window (black-target row only, no extra phases), keeping the final three hold phases as the vendor's black fixing. Applied to GC16/GL16/full GL16 and the text-turn table, keeping the trimmed turn speed.
+
 ## 0.3.3-rc103.01 / 2026-11-01
 
 - 合并上游 rc103 并接入其多板构建体系：板型由 `cmake/board.cmake` 与 `boards/<板型>/` 决定（`-DKIIKO_BOARD=pico|metalio47`），根目录的 `sdkconfig.defaults`、`partitions.csv`、`partitions_16M.csv` 随之上移到 `boards/pico/`，版本号改由 `boards/pico/board.json` 的 `version` 提供（本版 `0.3.3-rc103.01`）。Anki 与字体改动全部迁移到新体系，包括只在 Pico 编译的 `boards/pico/src/` 覆盖文件。分区表布局与 rc100/rc102 完全一致，刷机四步与 `0x10000` 地址不变。
@@ -28,6 +100,9 @@
   Files adds recursive search/counting, list/grid views, persistent multiselection, destination moves and confirmed deletion, with no overwrite and failed-item retries. Shelf management sorts by name/recent/first-added in either direction with consistent thumbnails. Save eight private Wi-Fi profiles and reconnect the most recent Bluetooth peer on enable.
 - 新开书默认标准模式及工具栏，中间单击切换全屏，沉浸偏好独立决定全屏样式。切换保留阅读锚点、翻页保留模式，信息栏空闲后局刷，手动与周期清理保留。四个根页、文件管理、设置和引导操作栏同步最新布局；EPUB标准封面缺失时按明确文件名回退。
   New books open with standard tools; centre taps toggle fullscreen independently of the immersive style. Preserve anchors/modes, update metadata locally after idle and retain manual/periodic cleanup. Update root/file/settings/setup layouts and add explicit-filename EPUB cover fallback.
+
+- 修复两类 EPUB 打不开：ZIP 的 EOCD 之后带少量非空白尾部标记（如 `0x04` 填充）会被误判为损坏；以及 EPUB3 的 `<spine>` 省略 `toc` 属性（目录只由 nav 文档提供）时被拒绝。尾部标记现在只接受有界填充，ZIP 目录/条目边界与 CRC 校验不变。
+  Fix two EPUB open failures: a ZIP with a short non-whitespace trailer after the EOCD (for example `0x04` padding) was rejected as corrupt, and an EPUB3 `<spine>` without the optional `toc` attribute failed even though the nav document supplies the TOC. Trailing padding is now accepted only within a bounded budget; central-directory/entry bounds and CRC checks are unchanged.
 
 ## 双板型源码并入 main / Unified two-board source in main
 
