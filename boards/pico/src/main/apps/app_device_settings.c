@@ -2884,10 +2884,19 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         s_main_group=pick; s_main_scroll=0;
         return APP_REDRAW_PAGE;
     }
-    // 二级页：把屏幕坐标还原成该组在长列表里的原始 Y，后面的分派保持原样。
-    // Group page: map the tap back to the group's original Y so the dispatch below is unchanged.
-    y = y - SETTINGS_GROUP_TOP + settings_group_y(s_main_group);
-    if (y>=180 && y<180+settings_profile_height()) return APP_REDRAW_NONE;
+    // 二级页：先按本组的行带裁剪，再把屏幕坐标还原成该组在长列表里的原始 Y。
+    // 组下方（或上方）的空白不属于任何一行；若只做平移，这段空白会落进下一分组的 Y 区间，
+    // 轻点就会误触发别的设置项。
+    // Group page: clip to this group's row band first, then map back to its original Y. Without the
+    // clip, blank space under the last row shifts into the next group's range and taps fire it.
+    {
+        const int band = s_main_group == 0 ? SETTINGS_WIRELESS_ROWS
+                       : s_main_group == 1 ? SETTINGS_DISPLAY_ROWS
+                       : s_main_group == 2 ? SETTINGS_PERSONAL_ROWS : SETTINGS_MAINTENANCE_ROWS;
+        const int local = y - SETTINGS_GROUP_TOP;
+        if (local < 0 || local >= band * SETTINGS_ROW_H) return APP_REDRAW_NONE;
+        y = settings_group_y(s_main_group) + local;
+    }
     int row;
     if (y>=SETTINGS_WIRELESS_Y && y<SETTINGS_WIRELESS_Y+SETTINGS_WIRELESS_ROWS*SETTINGS_ROW_H) {
         row=(y-SETTINGS_WIRELESS_Y)/SETTINGS_ROW_H;
@@ -3007,14 +3016,18 @@ static void settings_media_lost(app_ctx_t *ctx) {
 static void settings_media_ready(app_ctx_t *ctx) { settings_drag_reset(); (void)ctx; settings_prepare_profile(); }
 static bool settings_edge_back(app_ctx_t *ctx) {
     (void)ctx;
-    return s_page != SETTINGS_MAIN && !s_reset_pending && !s_local_pending &&
+    // 分组页同样可以用边缘右滑返回索引，与真正的三级页一致。
+    // Group pages accept the edge swipe back to the index, like the real sub-pages.
+    return (s_page != SETTINGS_MAIN || s_main_group >= 0) && !s_reset_pending && !s_local_pending &&
         !s_upgrade_restart && !s_pin_pending && !s_font_sync_confirm;
 }
 static bool settings_back_swipe_area(app_ctx_t *ctx,const ui_gesture_event_t *event) {
     (void)ctx;
     return s_page!=SETTINGS_TEXT_EDIT || event->y0<UI_SYSTEM_KEYBOARD_TOP;
 }
-static bool main_page_visible(app_ctx_t *ctx) { (void)ctx; return s_page == SETTINGS_MAIN; }
+// 中文：分组页不算主页面。判成主页面时侧键会去切底部标签页，返回键也不会回索引。
+// / A group page is not the main page: otherwise the side keys cycle tabs and back never returns to the index.
+static bool main_page_visible(app_ctx_t *ctx) { (void)ctx; return s_page == SETTINGS_MAIN && s_main_group < 0; }
 static bool settings_navigation_enabled(app_ctx_t *ctx) {
     (void)ctx;
     return !s_reset_pending && !s_local_pending && !s_upgrade_restart && !s_pin_pending && !s_boot_pending;

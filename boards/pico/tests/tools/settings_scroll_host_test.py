@@ -115,32 +115,32 @@ int main(void){
  for(int mode=0;mode<3;++mode){
   selected_mode=mode;reset(SETTINGS_MAIN,0);int before=pushes,taps=row_taps,before_cancel=cancels;
   assert(feed(300,800,true,true,0)==APP_REDRAW_NONE);
+  // 两级分组都单屏放下：主页拖动不再滚动，也不推送局部区域；点击与取消语义不变。
+  // Both levels fit one screen: dragging on the main page neither scrolls nor pushes; taps/cancels unchanged.
   assert(feed(300,693,true,false,100)==APP_REDRAW_NONE&&s_main_scroll==0);
-  assert(feed(300,692,true,false,110)==APP_REDRAW_AREA&&s_main_scroll==204);
-  assert(pushes==before+1&&paints==pushes&&paint_mode==mode&&pushed_mode==MODE_GL16);
-  assert(cancels==before_cancel+1);
-  assert(pushed.y==160&&pushed.y+pushed.height==UI_NAV_REFRESH_END);
-  for(int i=1;i<=30;++i)assert(feed(300,692-i*10,true,false,110+i*10)==APP_REDRAW_NONE&&s_main_scroll==204);
-  assert(feed(300,392,false,false,430)==APP_REDRAW_NONE&&s_main_scroll==204&&pushes==before+1&&row_taps==taps);
-  for(int i=1;i<=30;++i)assert(feed(300,392,false,false,430+i*100)==APP_REDRAW_NONE&&s_main_scroll==204&&pushes==before+1);
+  assert(feed(300,692,true,false,110)==APP_REDRAW_NONE&&s_main_scroll==0&&pushes==before);
+  for(int i=1;i<=30;++i)assert(feed(300,692-i*10,true,false,110+i*10)==APP_REDRAW_NONE&&s_main_scroll==0);
+  assert(feed(300,392,false,false,430)==APP_REDRAW_NONE&&s_main_scroll==0&&pushes==before&&row_taps==taps);
+  for(int i=1;i<=30;++i)assert(feed(300,392,false,false,430+i*100)==APP_REDRAW_NONE&&s_main_scroll==0&&pushes==before);
   assert(feed(300,700,true,true,4000)==APP_REDRAW_NONE);
   assert(feed(300,700,false,false,4010)==APP_REDRAW_NONE&&row_taps==taps+1);
-  // 短拖/横向/题头/底栏均不滚动；上下阈值、最大步长和上下边界保持原行为。
-  // Short/horizontal/chrome drags do not scroll; retain thresholds, maximum step and both boundaries.
-  reset(SETTINGS_MAIN,100);before=pushes;
-  feed(300,800,true,true,0);feed(300,770,true,false,20);feed(300,770,false,false,40);assert(s_main_scroll==100&&pushes==before);
-  reset(SETTINGS_MAIN,100);feed(300,800,true,true,0);feed(450,680,true,false,20);feed(450,680,false,false,40);assert(s_main_scroll==100);
-  reset(SETTINGS_MAIN,100);feed(300,150,true,true,0);feed(300,20,true,false,20);feed(300,20,false,false,40);assert(s_main_scroll==100);
-  reset(SETTINGS_MAIN,100);feed(300,1100,true,true,0);feed(300,900,true,false,20);feed(300,900,false,false,40);assert(s_main_scroll==100);
-  reset(SETTINGS_MAIN,500);feed(300,300,true,true,0);assert(feed(300,410,true,false,20)==APP_REDRAW_AREA&&s_main_scroll==296);feed(300,410,false,false,40);
-  reset(SETTINGS_MAIN,10);feed(300,300,true,true,0);feed(300,410,true,false,20);assert(s_main_scroll==0);feed(300,410,false,false,40);
-  reset(SETTINGS_MAIN,10);feed(300,800,true,true,0);feed(300,200,true,false,20);assert(s_main_scroll==460);feed(300,200,false,false,40);
-  reset(SETTINGS_MAIN,800);feed(300,800,true,true,0);feed(300,680,true,false,20);assert(s_main_scroll==833);feed(300,680,false,false,40);
-  // 多指/故障取消后无额外推进，正常点击恢复；连续多次滑动不产生定稿/周期全刷。
-  // Multitouch/fault cancellation adds no motion, taps recover, and repeated swipes add no settling/periodic full refresh.
-  reset(SETTINGS_MAIN,0);feed(300,800,true,true,0);touch.count=2;ctx.pressed=false;ui_gesture_event_t canceled;
-  assert(ui_gesture_feed(&recognizer,&ctx,&canceled)&&canceled.type==UI_GESTURE_CANCEL);event(&ctx,&canceled);assert(!s_main_scroll);
-  for(int i=0;i<80;++i){reset(SETTINGS_MAIN,400);before=pushes;feed(300,800,true,true,0);feed(300,680,true,false,20);feed(300,680,false,false,40);assert(pushes==before+1&&pushed_mode==MODE_GL16);}
+  // 手势物理（阈值、单步与上边界）在仍可滚动的蓝牙子页上验证：主页已无滚动位移。
+  // Gesture physics (threshold, single step, upper clamp) are checked on the Bluetooth sub-page, the only
+  // settings list that still scrolls.
+  reset(SETTINGS_BLUETOOTH,100);before=pushes;
+  feed(300,800,true,true,0);feed(300,770,true,false,20);feed(300,770,false,false,40);assert(s_ble_scroll==100&&pushes==before);
+  reset(SETTINGS_BLUETOOTH,100);feed(300,800,true,true,0);feed(450,680,true,false,20);feed(450,680,false,false,40);assert(s_ble_scroll==100);
+  reset(SETTINGS_BLUETOOTH,100);feed(300,150,true,true,0);feed(300,20,true,false,20);feed(300,20,false,false,40);assert(s_ble_scroll==100);
+  reset(SETTINGS_BLUETOOTH,100);feed(300,1100,true,true,0);feed(300,900,true,false,20);feed(300,900,false,false,40);assert(s_ble_scroll==100);
+  reset(SETTINGS_BLUETOOTH,500);feed(300,300,true,true,0);assert(feed(300,410,true,false,20)==APP_REDRAW_AREA&&s_ble_scroll==296);feed(300,410,false,false,40);
+  reset(SETTINGS_BLUETOOTH,10);feed(300,300,true,true,0);feed(300,410,true,false,20);assert(s_ble_scroll==0);feed(300,410,false,false,40);
+  reset(SETTINGS_BLUETOOTH,10);feed(300,800,true,true,0);feed(300,200,true,false,20);assert(s_ble_scroll==460);feed(300,200,false,false,40);
+  // 多指/故障取消后无额外推进；重复滑动不产生定稿/周期全刷。
+  // Multitouch/fault cancellation adds no motion; repeated swipes add no settling/periodic full refresh.
+  reset(SETTINGS_BLUETOOTH,400);feed(300,800,true,true,0);touch.count=2;ctx.pressed=false;ui_gesture_event_t canceled;
+  assert(ui_gesture_feed(&recognizer,&ctx,&canceled)&&canceled.type==UI_GESTURE_CANCEL);event(&ctx,&canceled);assert(s_ble_scroll==400);
+  for(int i=0;i<80;++i){reset(SETTINGS_BLUETOOTH,400);before=pushes;feed(300,800,true,true,0);feed(300,680,true,false,20);feed(300,680,false,false,40);assert(pushes==before+1&&pushed_mode==MODE_GL16);}
+  (void)taps;(void)before_cancel;
   for(int page=SETTINGS_BLUETOOTH;page<=SETTINGS_BLE_SCAN;++page){
    reset(page,0);feed(300,800,true,true,0);assert(feed(300,680,true,false,20)==APP_REDRAW_AREA&&s_ble_scroll==204);
    assert(pushed.y==190&&pushed.y+pushed.height==settings_content_end());feed(300,680,false,false,40);
@@ -153,7 +153,7 @@ int main(void){
  }
  s_page=SETTINGS_UPGRADE;assert(settings_present(&ctx,APP_REDRAW_AREA)&&pushed.y==468&&pushed.height==64);
  assert(!settings_present(&ctx,APP_REDRAW_NONE));
- puts("PASS: original discrete fallback/preview pages with new motion hooks isolated: all three modes use one discrete step and one shared fast-difference update per swipe; retained AA/avatars, one bounded list-gray pass, no extra release/idle frames or periodic full flash; root crop preserves navigation and child crop stops above persistent navigation; selectors and OTA remain");
+ puts("PASS: two-level settings (index + one page per group) never scrolls the main page while the Bluetooth sub-page keeps the discrete motion; preview pages with new motion hooks isolated: all three modes use one discrete step and one shared fast-difference update per swipe; retained AA/avatars, one bounded list-gray pass, no extra release/idle frames or periodic full flash; root crop preserves navigation and child crop stops above persistent navigation; selectors and OTA remain");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='kiikoread-settings-rollback-') as directory:
