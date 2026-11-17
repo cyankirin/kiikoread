@@ -84,6 +84,10 @@ if 'book_epub_metadata_cached_for_file' in book.read_text():
     unit+='static int book_epub_metadata_cached_for_file(const char*p,uint64_t size,int64_t modified,char*t,size_t n,char*a,size_t z){(void)size;(void)modified;return book_epub_metadata_cached(p,t,n,a,z); }\n'
 unit+='enum{EXPECTED_SCAN_STAT='+('4' if 'book_epub_metadata_cached_for_file' in function('scan_shelf_dir',book) else '7')+'};\n'
 unit+='static int shelf_stat_calls;static int shelf_stat(const char*p,struct stat*s){++shelf_stat_calls;return stat(p,s); }\n#define stat(p,s) shelf_stat(p,s)\n'
+# rc108 的 shelf_scan_interrupted 引用了留在 app_book.c 里的扫描状态与触摸查询；宿主按需补齐。
+# rc108's shelf_scan_interrupted references scan state and the touch query living in app_book.c; restate them here.
+unit+='static bool s_shelf_scan_yield_to_touch,s_shelf_scan_cancelled,s_background_index_scan;\n'
+unit+='static bool app_touch_input_pending(app_ctx_t*c){(void)c;return false;}\n'
 for name in ['copy_text','clean_filename','shelf_scan_interrupted','scan_shelf_dir','shelf_backfill_visit']:
     unit+=function(name,book).replace('s_count','shelf_count').replace('s_view','shelf_view')+'\n'
 unit+='\n#undef stat\n'
