@@ -56,6 +56,8 @@ static unsigned layout_span=100,reflows,paints,saves,failed_reflows;
 static uint8_t full_pages;
 static const char *app_settings_book_background_path(void){return "";}
 static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}
+static void ticket_count_turn(void){++s_session_turns;}
+
 static void lock_draw(void){assert(!draw_locked);draw_locked=true;}
 static void unlock_draw(void){assert(draw_locked);draw_locked=false;}
 static void invalidate_prep(void){}
@@ -181,7 +183,7 @@ int main(void){
   assert(!s_zoom_bits&&!s_zoom_bits_bytes&&!s_zoom_active&&!s_image_pan_active&&!s_image_zoom_bw&&!s_reader_tap.pending);
   assert(s_zoom_slot==-1&&s_image_zoom==READER_IMAGE_ZOOM_MIN&&s_image_zoom_page==SIZE_MAX&&!s_image_zoom_start_distance);
   assert(s_reader_fullscreen==!!full&&s_reader_panel==READER_PANEL_NONE&&s_reader_slider==-1);
-  assert(s_stats_pending_turns==1&&s_session_turns==1&&paints==1);
+  assert(s_session_turns==1&&paints==1);/*rc108 翻页计数直接走 ticket_count_turn，不再挂起批量统计*/
   assert(book_layout_page_start_offset(s_page)<=destination&&destination<book_layout_page_start_offset(s_page)+layout_span);
   assert(!reflows);
   assert(r==(tools?APP_REDRAW_PAGE:APP_REDRAW_AREA));
