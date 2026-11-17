@@ -91,7 +91,7 @@ static EpdRect ui_bar_rect(int i,int count){int width=(508-(count-1)*12)/count;r
 enum {UI_PAGER_NONE=-1,UI_PAGER_FIRST,UI_PAGER_PREVIOUS,UI_PAGER_NEXT,UI_PAGER_LAST};
 static EpdRect ui_pager_rect(int i){return (EpdRect){40+i*140,1004,100,70};}
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
-typedef struct {char name[256],author[128],path[288];uint32_t size;uint16_t chapter,chapters;bool chapters_checked, is_flash,has_progress;uint8_t pct;uint32_t recent;uint64_t added;bool selected,removed,search_match,favorite;} shelf_entry_t;
+typedef struct {char name[256],author[128],path[288];uint32_t size;int64_t modified;bool cover_identity_known;uint16_t chapter,chapters;bool chapters_checked, is_flash,has_progress;uint8_t pct;uint32_t recent;uint64_t added;bool selected,removed,search_match,favorite;} shelf_entry_t;
 #define BOOK_ROWS 13
 #define BOOK_GRID_ROWS 9
 #define BOOK_BULK_ROWS 5
@@ -270,7 +270,7 @@ static void invalidate_covers(void){}
 static shelf_entry_t s_managed;
 static bool s_delete_confirm,s_file_removed,s_clear_confirm;
 static char s_manage_message[128];
-typedef enum {SHELF,SETTINGS,READING,TOC,MANAGE,BULK,IMPORT,SEARCH,EDIT} book_view_t;
+typedef enum {SHELF,SETTINGS,READING,TOC,MANAGE,BULK,IMPORT,SEARCH,EDIT,COVER_LOOKUP} book_view_t;
 static book_view_t s_view,s_search_parent;
 static bool test_draw_locked,test_system_face=true;
 static void lock_draw(void){assert(!test_draw_locked);test_draw_locked=true;}
@@ -475,6 +475,24 @@ static void sort_shelf(app_ctx_t*ctx);
 static void shelf_category_remember(app_ctx_t*ctx);
 static bool s_rc_double_pending;
 static bool s_manage_style_restore;
+static bool s_shelf_scan_yield_to_touch, s_shelf_scan_cancelled, s_background_index_scan;
+static bool app_touch_input_pending(app_ctx_t *ctx){(void)ctx;return false;}
+static bool book_weread_cover_metadata(const char *path,char *title,size_t title_cap,char *author,size_t author_cap){(void)path;(void)title;(void)title_cap;(void)author;(void)author_cap;return false;}
+/* rc108 书架扫描/封面查询的新状态与外部函数：宿主里只保留语义上无害的最小实现。*/
+/* rc108 shelf-scan/cover-lookup state and externals: minimal, behaviour-neutral host stand-ins.*/
+static bool s_shelf_index_preloaded;
+static int64_t s_shelf_input_ms;
+static bool s_shelf_recheck_on_return;
+static void reader_current_chapter(char *dst, size_t cap){(void)cap;dst[0]=0;}
+static void app_book_ticket_sample(int64_t now_ms,bool exposed){(void)now_ms;(void)exposed;}
+static void book_ticket_note_position(const char *path,const book_progress_t *progress,const char *chapter,bool saved){(void)path;(void)progress;(void)chapter;(void)saved;}
+static app_redraw_t bulk_cover_start(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static app_redraw_t cover_lookup_back(void){s_view=BULK;return APP_REDRAW_PAGE;}
+static app_redraw_t cover_lookup_page(int direction){(void)direction;return APP_REDRAW_NONE;}
+static void cover_lookup_cleanup(void){}
+static bool cover_lookup_resume(void){return false;}
+static void shelf_cache_save(void){}
+static bool shelf_cache_load(app_ctx_t *ctx,bool background){(void)ctx;(void)background;return false;}
 static void rc_pause_auto(void){}
 static void rc_stop_auto(void){}
 static void rc_cancel_side(void){}
@@ -487,6 +505,10 @@ unit += function('app_settings_book_paragraph_level', settings_source) + '\n'
 unit += function("book_layout_balanced_rect", layout_source) + "\n"
 unit += function("set_reader_view") + "\n"
 unit += function("ble_pt_action_for_usage", source.parents[2] / "components/ble_page_turner/src/ble_page_turner.c") + "\n"
+# rc108 的书架扫描被后台索引中断逻辑包裹：抽取真实的中断判定，供 scan_shelf_dir/scan_shelf 等调用。
+# rc108 wraps the shelf scan with background-index interruption; extract the real guards for the scan helpers.
+for name in ("shelf_waiting_for_index", "shelf_scan_interrupted"):
+    unit += function(name, source) + "\n"
 for name in ("inline_ink_gray", "reader_margin_width", "reader_margin_levels", "reader_margin_level_for", "reader_margin_for_level", "slider_index", "reader_margin_input", "reader_area", "reader_fullscreen_progress_area", "body_rect_for_tracking", "body_rect", "progress_rect", "copy_text", "reader_footer_strip_number", "favorite_key", "favorite_read_handle", "shelf_hidden_key", "shelf_hidden_read_handle", "shelf_hidden_load", "shelf_hidden_save", "shelf_display_style", "shelf_rows", "row_rect", "shelf_category_add", "shelf_category_init", "shelf_category_matches", "shelf_category_remember", "shelf_category_restore", "shelf_categories_recount", "shelf_matches", "shelf_order_apply", "compare_books", "sort_shelf", "shelf_reserve", "delete_retry_find", "delete_retry_reserve", "delete_retry_discard", "scan_shelf_dir", "shelf_backfill_visit", "shelf_backfill_read_books", "shelf_progress_load", "scan_shelf", "refresh_cached_progress",
              "pending_find", "pending_reserve", "pending_restore", "pending_discard", "pending_mark_latest", "pending_drop_invalidated", "pending_flush", "reader_page_offset", "save_progress", "retry_progress", "layout_name", "manage_panel", "manage_rect", "batch_rect", "manage_back_rect", "shelf_manage_rect", "shelf_sort_rect", "shelf_pager_group_rect", "shelf_search_rect", "shelf_search_clear_rect", "bulk_filter_rect", "bulk_nav_rect", "bulk_nav_hit", "bulk_sort_rect", "shelf_sort_menu_rect", "shelf_order_mode", "shelf_order_desc", "leaves", "selected_count", "clear_selection", "toggle_selection", "bookmark_compact", "search_begin", "refresh_search_matches", "search_finish", "shelf_search_clear", "refresh_capacity", "manage_apply", "manage_action", "batch_apply", "batch_action", "bulk_turn_page", "bulk_finish", "bulk_select_row", "bulk_action", "bulk_control_at", "menu_handle_enabled", "reader_manual_refresh", "apply_reader_option", "reader_return", "reader_key_action", "import_finish", "shelf_sort_gesture", "on_key", "on_key_long", "draw_wrapped_name", "open_requested_book", "on_enter", "book_on_exit"):
     unit += function(name) + "\n"
