@@ -1,5 +1,10 @@
 # 版本变更 / Changelog
 
+## Metalio S31 0.3.3-rc114.01 — 2026-11-17
+
+- **S31**：新增 Anki 学习页。文件页点击 `.apkg` 卡组包直接导入，首页顶栏新增 Anki 入口；正面/背面复习、填空题、单选与多选题型，错误答案反色，Anki 兼容调度与进度备份恢复。其余功能与 rc114 一致，构建旗标（PIE 像素、文字波纹、37 相阅读面板、设置短动效）与 rc114 发布版相同。Pico 不受影响，保持 `0.3.3-rc108.01`。
+- **S31**: New Anki study page. Tap an `.apkg` deck in Files to import it, or enter from the new home-top Anki pill; front/back review, cloze, single and multiple choice, inverted wrong answers, Anki-compatible scheduling and progress backup/restore. Everything else matches rc114, built with the same experiment flags as the rc114 release. Pico stays at `0.3.3-rc108.01`.
+
 ## 小纸 PICO 0.3.3-rc108 / Metalio S31 0.3.3-rc114 — 2026-11-16
 
 - **双机型**：提前准备书架首页，进入书架后继续预热后续页。缓存封面整页显示，切页和开书可打断后台工作。

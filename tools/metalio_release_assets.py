@@ -14,7 +14,7 @@ def stage_metalio(flash: Path, output: Path) -> None:
     manifest=json.loads((source/'manifest.json').read_text())
     assets=json.loads((source/'release-assets.json').read_text())
     version=manifest['version']
-    assert re.fullmatch(r'\d+\.\d+\.\d+-rc\d+',version)
+    assert re.fullmatch(r'\d+\.\d+\.\d+-rc\d+(?:\.\d+)?',version)
     assert assets['schema']==1 and assets['tag']=='metalio-s31-v'+version
     assert manifest['board']=='metalio47' and manifest['project']=='Kiikoread_Metalio_S31'
     assert manifest['new_install_prompt_erase'] is True
@@ -68,7 +68,7 @@ def stage_metalio(flash: Path, output: Path) -> None:
     # 历史版本必须来自原 Release，所有旧网址保留原字节。 / Historical URLs retain original Release bytes.
     history={}
     for release in assets.get('historical',[]):
-        assert re.fullmatch(r'metalio-s31-v\d+\.\d+\.\d+-rc\d+',release['tag'])
+        assert re.fullmatch(r'metalio-s31-v\d+\.\d+\.\d+-rc\d+(?:\.\d+)?',release['tag'])
         fixed='Metalio-S31-update-'+release['tag'].removeprefix('metalio-s31-v')+'.bin'
         assert set(release['files'])=={fixed}
         _hydrate_files(flash,output,release,maximum=0x500000)

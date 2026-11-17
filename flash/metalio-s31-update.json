@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc114",
+  "version": "0.3.3-rc114.01",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "0.3.3-rc98",
-  "url": "https://wegooo-cell.github.io/read-pico-reader/Metalio-S31-update-0.3.3-rc114.bin",
-  "size": 5157760,
-  "sha256": "2434c8bb7cd36c1760e926a0981fdce52f40962ec2243983bfe98b5c7c401e1e",
-  "notes": "书架提前加载，封面整页显示，切页和开书可打断。\nTXT 封面支持 Z-Library 和手选小图，保存到 TF 卡。\n票根校准章节和阅读时长，修复 TXT 导入和异常续读。\n短锁保留 TF 挂载，支持单击或双击唤醒，沿用 RC113 翻页参数。"
+  "url": "https://wegooo-cell.github.io/read-pico-reader/Metalio-S31-update-0.3.3-rc114.01.bin",
+  "size": 5232096,
+  "sha256": "958a0654fa945f2e2216260d396932b79e9b2de9c04eeafd21b9b7521f2bf707",
+  "notes": "新增 Anki 学习：文件页点 .apkg 导入卡组，正面/背面复习，含填空与单选、多选题型，错误反色，进度备份恢复。首页顶栏新增 Anki 入口，其余功能与 rc114 相同。"
 }

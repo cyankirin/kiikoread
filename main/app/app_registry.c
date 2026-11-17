@@ -15,14 +15,12 @@ extern const app_desc_t app_cloud_sync;
 extern const app_desc_t app_dashboard;
 extern const app_desc_t app_files;
 extern const app_desc_t app_device_settings;
-// Anki 学习页只进 Pico 构建（源码在 main/anki/，仅在 main/CMakeLists.txt 的 Pico 分支
-// 编译）；S31 的页面清单里没有它，否则链接期会缺 app_anki。/
-// The Anki study page is Pico-only: its sources live in main/anki/ and only the Pico
-// branch of main/CMakeLists.txt compiles them, so the S31 page table must not name it
-// or the link fails on a missing app_anki.
-#if !KIIKO_BOARD_METALIO47
+// Anki 学习页两板通用（源码在 main/anki/，main/CMakeLists.txt 的两个板分支都会
+// 编译）；页面清单对 Pico 与 S31 都包含它。/
+// The Anki study page is shared by both boards: its sources live in main/anki/ and
+// both board branches of main/CMakeLists.txt compile them, so the page table names
+// it for Pico and S31 alike.
 extern const app_desc_t app_anki;
-#endif
 
 // 正式产品页面清单；工厂测试与历史示例不进入用户导航。
 // Production page registry; factory diagnostics and legacy examples are not user-navigable.
@@ -32,9 +30,7 @@ static const app_desc_t* const s_apps[] = {
     &app_files,
     &app_device_settings,
     &app_image,
-#if !KIIKO_BOARD_METALIO47
     &app_anki,
-#endif
     &app_cloud_sync,
 };
 
