@@ -7,6 +7,7 @@
  * User revision: erase incrementally and serialize flash with display output; require memory headroom and fail safely on shortage.
  */
 #include "ota_online.h"
+#include "ota_update.h"
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
 #include "esp_crt_bundle.h"
@@ -29,7 +30,7 @@
 static SemaphoreHandle_t s_mutex, s_done, s_flash_display;
 static pico_update_status_t *s_status;
 static atomic_bool s_cancel;
-static bool s_joinable, s_download;
+static bool s_joinable, s_download, s_save_tf;
 static pico_ota_channel_t s_channel;
 static const esp_partition_t *s_verified;
 
@@ -78,6 +79,8 @@ static void state(pico_update_state_t value, const char *message) {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_status->state = value;
     snprintf(s_status->message, sizeof(s_status->message), "%s", message);
+    s_status->same_base_official = false;
+    s_status->tf_saved = false;
     ++s_status->revision;
     xSemaphoreGive(s_mutex);
 }
@@ -209,17 +212,17 @@ static int read_chunk(esp_http_client_handle_t client, uint8_t *buffer, int cap,
     }
     return -1;
 }
-static bool check_feed(void) {
-    char *json = heap_caps_malloc(8193, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    pico_release_t *release = heap_caps_calloc(1, sizeof(*release), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!json || !release) { state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试"); goto failed; }
+// 中文：按通道拉取并解析清单；失败时直接给出对应提示。调用方负责缓冲区分配与后续决策。
+// English: Fetch and parse the manifest for one channel; failures report their own message.
+//          Callers own the buffers and the follow-up decisions.
+static bool fetch_manifest(pico_ota_channel_t channel, char *json, pico_release_t *release) {
     // GitHub Pages清单优先，官网清单备用；同一缓冲区顺序请求，无并发TLS连接。
     // Prefer GitHub Pages metadata, falling back to the website with one shared buffer and no concurrent TLS clients.
     // 中文：Anki 版只读本 fork 的 Pages 清单，没有备用源；官方通道的清单源与顺序完全不变。
     // English: The Anki channel reads this fork's Pages manifest only; the official channel keeps its feed order.
     static const char *const official_feeds[] = {PICO_OTA_FEED_URL, PICO_OTA_FEED_FALLBACK_URL};
     static const char *const anki_feeds[] = {PICO_OTA_ANKI_FEED_URL};
-    const bool anki = s_channel == PICO_OTA_CHANNEL_ANKI;
+    const bool anki = channel == PICO_OTA_CHANNEL_ANKI;
     const char *const *feeds = anki ? anki_feeds : official_feeds;
     const size_t feed_count = anki ? sizeof(anki_feeds) / sizeof(anki_feeds[0])
                                    : sizeof(official_feeds) / sizeof(official_feeds[0]);
@@ -245,11 +248,16 @@ static bool check_feed(void) {
         json[received] = 0;
         if (n >= 0 && complete && pico_release_parse(json, received, release) == ESP_OK) { valid = true; break; }
     }
-    if (!valid) {
+    if (!valid)
         state(PICO_UPDATE_FAILED, anki ? "Anki 版清单获取失败，请稍后重试"
-                                      : "更新服务器连接失败或清单无效，请稍后重试");
-        goto failed;
-    }
+                                       : "更新服务器连接失败或清单无效，请稍后重试");
+    return valid;
+}
+static bool check_feed(void) {
+    char *json = heap_caps_malloc(8193, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    pico_release_t *release = heap_caps_calloc(1, sizeof(*release), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!json || !release) { state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试"); goto failed; }
+    if (!fetch_manifest(s_channel, json, release)) goto failed;
     const esp_app_desc_t *running = esp_app_get_description();
     if (strcmp(release->project, running->project_name) || !layout_valid() ||
         pico_version_compare(running->version, release->minimum_base_version) < 0) {
@@ -259,17 +267,26 @@ static bool check_feed(void) {
     memcpy(&s_status->release, release, sizeof(*release));
     xSemaphoreGive(s_mutex);
     // 中文：分支版把官方基线加了一个本地小修订（如官方 rc106 → 本机 rc106.02），版本比较天然是「不更新」。
-    //       这时说清楚「官方版已并入本机」，否则用户会以为官方通道坏了。
+    //       大版本一致（官方 rc108 vs 本机 rc108.01）时官方原版也允许在线升级，但升级会移除
+    //       Anki 功能——状态里带上标记，确认页据此改写文案并提供「下载 Anki 版到 TF 卡」。
     // English: The fork carries a local sub-revision on top of the official base (official rc106 →
-    //   local rc106.02), so the comparison is naturally "not newer". Say that the official build is
-    //   already folded in, instead of a bare "up to date" that reads like a broken channel.
+    //   local rc106.02), so the comparison is naturally "not newer". With matching base versions
+    //   (official rc108 vs local rc108.01) the official build is offered online as well; it removes
+    //   Anki, so the status carries a flag and the confirm page swaps in the save-to-TF wording.
     const int comparison = pico_version_compare(release->version, running->version);
     const size_t base_len = strlen(release->version);
     const bool same_base = strlen(running->version) > base_len &&
         running->version[base_len] == '.' && !strncmp(running->version, release->version, base_len);
-    if (comparison > 0) state(PICO_UPDATE_AVAILABLE, "发现新版本，可下载安装");
-    else if (same_base) state(PICO_UPDATE_LATEST, "官方版本已并入当前系统，无需升级");
-    else state(PICO_UPDATE_LATEST, "当前已是最新版本");
+    if (comparison > 0) {
+        state(PICO_UPDATE_AVAILABLE, "发现新版本，可下载安装");
+    } else if (same_base && s_channel == PICO_OTA_CHANNEL_OFFICIAL) {
+        state(PICO_UPDATE_AVAILABLE, "官方原版可升级（升级将移除 Anki 功能）");
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        s_status->same_base_official = true;
+        xSemaphoreGive(s_mutex);
+    } else {
+        state(PICO_UPDATE_LATEST, "当前已是最新版本");
+    }
     heap_caps_free(json); heap_caps_free(release);
     return true;
 failed:
@@ -380,6 +397,105 @@ failed:
     heap_caps_free(release); heap_caps_free(buffer); heap_caps_free(header);
     return false;
 }
+// 中文：把 Anki 通道固件流式写入 TF 卡根目录（Pico-update.bin），供升级官方原版后经
+//       「TF 卡升级」手动装回。不触碰 OTA 槽；首包校验镜像头，落盘校验 SHA256，失败删残包。
+// English: Stream the Anki-channel firmware to the TF-card root (Pico-update.bin) so it can be
+//          installed back through the local TF update after upgrading to the official build. No
+//          OTA slot is touched; the image header is validated early, SHA256 on completion, and a
+//          failed attempt deletes the partial file.
+static bool save_anki_tf(void) {
+    pico_release_t *release = heap_caps_malloc(sizeof(*release), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    uint8_t *buffer = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    uint8_t *header = heap_caps_malloc(288, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    char *json = heap_caps_malloc(8193, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!release || !buffer || !header || !json) { state(PICO_UPDATE_FAILED, "内存不足，无法保存 Anki 版固件"); goto failed; }
+    if (!fetch_manifest(PICO_OTA_CHANNEL_ANKI, json, release)) goto failed;
+    const esp_app_desc_t *running = esp_app_get_description();
+    if (strcmp(release->project, running->project_name) || !layout_valid() ||
+        pico_version_compare(running->version, release->minimum_base_version) < 0) {
+        state(PICO_UPDATE_FAILED, "基础包不兼容，无法保存 Anki 版固件"); goto failed;
+    }
+    state(PICO_UPDATE_DOWNLOADING, "正在下载 Anki 版固件到 TF 卡");
+    bool ok = false;
+    for (unsigned attempt = 0; attempt < 3 && !ok && !atomic_load(&s_cancel); ++attempt) {
+        if (attempt) vTaskDelay(pdMS_TO_TICKS(250 * attempt));
+        FILE *file = fopen(PICO_OTA_UPDATE_PATH, "wb");
+        if (!file) { state(PICO_UPDATE_FAILED, "TF 卡不可用，无法保存 Anki 版固件"); goto failed; }
+        size_t total = 0, header_size = 0;
+        bool header_ok = false, stream_error = false, complete = false;
+        psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
+        if (psa_hash_setup(&hash, PSA_ALG_SHA_256) != PSA_SUCCESS) {
+            fclose(file);
+            state(PICO_UPDATE_FAILED, "安全模块初始化失败"); goto failed;
+        }
+        int code = -1; int64_t length = -1;
+        esp_http_client_handle_t client = NULL;
+        int64_t idle = esp_timer_get_time() + 30000000;
+        int n = -1;
+        unsigned retries = 0;
+        while (!stream_error && !atomic_load(&s_cancel)) {
+            if (!client) {
+                if (wait_network()) client = open_http(release->url, &code, &length);
+                if (!client) {
+                    if (atomic_load(&s_cancel) || retries++ >= 3) { stream_error = true; break; }
+                    vTaskDelay(pdMS_TO_TICKS(250 * retries)); continue;
+                }
+                if (code != 200 || (length > 0 && (uint64_t)length != release->size)) { stream_error = true; break; }
+                idle = esp_timer_get_time() + 30000000;
+            }
+            n = read_chunk(client, buffer, 4096, &idle);
+            if (n <= 0) {
+                complete = esp_http_client_is_complete_data_received(client);
+                esp_http_client_cleanup(client); client = NULL;
+                if (n == 0 && complete && total == release->size) { ok = true; break; }
+                if (atomic_load(&s_cancel) || retries++ >= 3) { stream_error = true; break; }
+                break;  // 断流即整包重来：每次尝试都重新截断写文件。
+            }
+            if (total + (size_t)n > release->size) { stream_error = true; break; }
+            if (header_size < 288) {
+                size_t used = 288 - header_size < (size_t)n ? 288 - header_size : (size_t)n;
+                memcpy(header + header_size, buffer, used);
+                header_size += used;
+                if (header_size == 288 && !header_valid(header, release)) { stream_error = true; break; }
+                header_ok = true;
+            }
+            if (psa_hash_update(&hash, buffer, (size_t)n) != PSA_SUCCESS) { stream_error = true; break; }
+            if (fwrite(buffer, 1, (size_t)n, file) != (size_t)n) { stream_error = true; break; }
+            total += (size_t)n;
+            xSemaphoreTake(s_mutex, portMAX_DELAY);
+            s_status->received = total; ++s_status->revision;
+            xSemaphoreGive(s_mutex);
+        }
+        if (client) esp_http_client_cleanup(client);
+        uint8_t digest[32] = {0};
+        size_t digest_len = 0;
+        bool hashed = psa_hash_finish(&hash, digest, sizeof(digest), &digest_len) == PSA_SUCCESS
+            && digest_len == sizeof(digest);
+        if (fclose(file) != 0) ok = false;
+        if (ok) {
+            char expected[65];
+            for (int i = 0; i < 32; ++i) snprintf(expected + i * 2, 3, "%02x", digest[i]);
+            ok = header_ok && hashed && !strcasecmp(expected, release->sha256);
+        }
+        if (!ok && !atomic_load(&s_cancel)) {
+            remove(PICO_OTA_UPDATE_PATH);
+            state(PICO_UPDATE_DOWNLOADING, "下载校验失败，正在重试");
+        }
+    }
+    if (atomic_load(&s_cancel)) remove(PICO_OTA_UPDATE_PATH);
+    heap_caps_free(release); heap_caps_free(buffer); heap_caps_free(header); heap_caps_free(json);
+    if (ok) {
+        state(PICO_UPDATE_LATEST, "Anki 版固件已存入 TF 卡；升级原版后可在 TF 卡升级中装回");
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        s_status->tf_saved = true;
+        xSemaphoreGive(s_mutex);
+    }
+    return ok;
+failed:
+    remove(PICO_OTA_UPDATE_PATH);
+    heap_caps_free(release); heap_caps_free(buffer); heap_caps_free(header); heap_caps_free(json);
+    return false;
+}
 static void worker(void *unused) {
     (void)unused;
     bool owned = false;
@@ -391,6 +507,7 @@ static void worker(void *unused) {
         restore_ps = esp_wifi_get_ps(&previous_ps) == ESP_OK && esp_wifi_set_ps(WIFI_PS_NONE) == ESP_OK;
         if (!memory_available(32768, 8192, 262144))
             state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试");
+        else if (s_save_tf) (void)save_anki_tf();
         else if (s_download) (void)download(); else (void)check_feed();
     }
     if (restore_ps) (void)esp_wifi_set_ps(previous_ps);
@@ -400,7 +517,7 @@ static void worker(void *unused) {
     xSemaphoreGive(s_done);
     vTaskDelete(NULL);
 }
-static esp_err_t start(bool downloading, pico_ota_channel_t channel) {
+static esp_err_t start(bool downloading, bool save_tf, pico_ota_channel_t channel) {
     if (!initialize()) return ESP_ERR_NO_MEM;
     if (channel != PICO_OTA_CHANNEL_OFFICIAL && channel != PICO_OTA_CHANNEL_ANKI)
         return ESP_ERR_INVALID_ARG;
@@ -408,21 +525,22 @@ static esp_err_t start(bool downloading, pico_ota_channel_t channel) {
     bool busy = s_status->busy;
     bool available = s_status->state == PICO_UPDATE_AVAILABLE && s_status->channel == channel;
     xSemaphoreGive(s_mutex);
-    if (busy || (downloading && !available)) return ESP_ERR_INVALID_STATE;
+    if (busy || (downloading && !available && !save_tf)) return ESP_ERR_INVALID_STATE;
     if (s_joinable) { xSemaphoreTake(s_done, portMAX_DELAY); s_joinable = false; }
     if (!memory_available(49152, 16384, 524288)) {
         state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试");
         return ESP_ERR_NO_MEM;
     }
     atomic_store(&s_cancel, false);
-    s_download = downloading; s_verified = NULL; s_channel = channel;
+    s_download = downloading; s_save_tf = save_tf; s_verified = NULL; s_channel = channel;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_status->busy = true; s_status->received = 0; s_status->channel = channel;
     xSemaphoreGive(s_mutex);
     const bool anki = channel == PICO_OTA_CHANNEL_ANKI;
     state(downloading ? PICO_UPDATE_DOWNLOADING : PICO_UPDATE_CHECKING,
-          downloading ? (anki ? "正在下载 Anki 版，短暂断网会自动重连" : "正在下载，短暂断网会自动重连")
-                      : (anki ? "正在连接并检查 Anki 版更新" : "正在连接并检查更新"));
+          save_tf ? "正在连接并获取 Anki 版固件"
+                  : downloading ? (anki ? "正在下载 Anki 版，短暂断网会自动重连" : "正在下载，短暂断网会自动重连")
+                                : (anki ? "正在连接并检查 Anki 版更新" : "正在连接并检查更新"));
     if (xTaskCreate(worker, "kiikoread_ota", 12288, NULL, 4, NULL) != pdPASS) {
         xSemaphoreTake(s_mutex, portMAX_DELAY); s_status->busy = false; xSemaphoreGive(s_mutex);
         state(PICO_UPDATE_FAILED, "内存不足，无法开始升级"); return ESP_ERR_NO_MEM;
@@ -430,10 +548,11 @@ static esp_err_t start(bool downloading, pico_ota_channel_t channel) {
     s_joinable = true;
     return ESP_OK;
 }
-esp_err_t pico_online_check(void) { return start(false, PICO_OTA_CHANNEL_OFFICIAL); }
-esp_err_t pico_online_download(void) { return start(true, PICO_OTA_CHANNEL_OFFICIAL); }
-esp_err_t pico_online_check_channel(pico_ota_channel_t channel) { return start(false, channel); }
-esp_err_t pico_online_download_channel(pico_ota_channel_t channel) { return start(true, channel); }
+esp_err_t pico_online_check(void) { return start(false, false, PICO_OTA_CHANNEL_OFFICIAL); }
+esp_err_t pico_online_download(void) { return start(true, false, PICO_OTA_CHANNEL_OFFICIAL); }
+esp_err_t pico_online_check_channel(pico_ota_channel_t channel) { return start(false, false, channel); }
+esp_err_t pico_online_download_channel(pico_ota_channel_t channel) { return start(true, false, channel); }
+esp_err_t pico_online_save_anki_tf(void) { return start(false, true, PICO_OTA_CHANNEL_ANKI); }
 void pico_online_cancel_join(void) {
     if (s_joinable) {
         atomic_store(&s_cancel, true);

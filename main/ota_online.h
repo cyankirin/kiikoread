@@ -57,6 +57,15 @@ typedef struct {
     // 中文：当前状态所属的通道，界面据此区分「官方版 / Anki 版」。
     // English: Channel the current status belongs to; the UI names it as official or Anki.
     pico_ota_channel_t channel;
+    // 中文：官方通道发现「大版本一致的原版」（本机 rc108.01 vs 官方 rc108）。升级会移除
+    //       Anki，确认页据此改写文案并提供「下载 Anki 版到 TF 卡」。
+    // English: The official channel found an original build with the same base version (local
+    //          rc108.01 vs official rc108). Upgrading removes Anki, so the confirm page swaps in
+    //          the save-the-Anki-image-to-TF wording and action.
+    bool same_base_official;
+    // 中文：Anki 版固件已存入 TF 卡（Pico-update.bin），供升级原版后手动装回。
+    // English: The Anki image is saved to the TF card (Pico-update.bin) for manual restore.
+    bool tf_saved;
 } pico_update_status_t;
 
 /// 有界解析、型号与版本验证；不接触网络。/ Bounded parsing, board and version validation without networking.
@@ -71,6 +80,12 @@ esp_err_t pico_online_download(void);
 /// English: Check/download on a chosen channel; the official channel equals the plain calls.
 esp_err_t pico_online_check_channel(pico_ota_channel_t channel);
 esp_err_t pico_online_download_channel(pico_ota_channel_t channel);
+/// 中文：把 Anki 通道清单指向的固件下载到 TF 卡根目录（Pico-update.bin），供升级原版后
+///       经「TF 卡升级」手动装回；不改动任何 OTA 槽。
+/// English: Download the firmware referenced by the Anki manifest to the TF-card root
+///          (Pico-update.bin) so it can be installed back via the local TF update; no OTA slot
+///          is touched.
+esp_err_t pico_online_save_anki_tf(void);
 #endif
 bool pico_online_busy(void);
 void pico_online_get_status(pico_update_status_t *status);

@@ -225,7 +225,7 @@ static char s_upgrade_notice[96];
 static uint32_t s_update_drawn_percent, s_update_drawn_at;
 static pico_update_state_t s_update_drawn_state;
 static bool s_update_drawn_busy, s_upgrade_offer_pending;
-typedef enum { UPGRADE_JOB_NONE, UPGRADE_JOB_CHECK, UPGRADE_JOB_DOWNLOAD } upgrade_job_t;
+typedef enum { UPGRADE_JOB_NONE, UPGRADE_JOB_CHECK, UPGRADE_JOB_DOWNLOAD, UPGRADE_JOB_SAVE_TF } upgrade_job_t;
 static upgrade_job_t s_upgrade_job;
 static int s_upgrade_bar_width;
 // 中文：本页正在操作的通道。官方通道是与旧界面完全一致的那一条；「Anki 版联网升级」是新增
@@ -363,11 +363,13 @@ static void upgrade_schedule(bool downloading, pico_ota_channel_t channel, uint3
 }
 static app_redraw_t upgrade_start_pending(void) {
     bool downloading = s_upgrade_job == UPGRADE_JOB_DOWNLOAD;
+    bool save_tf = s_upgrade_job == UPGRADE_JOB_SAVE_TF;
     s_upgrade_job = UPGRADE_JOB_NONE;
     app_home_cover_mode_changed();
     app_book_cover_mode_changed();
-    esp_err_t error = downloading ? pico_online_download_channel(s_upgrade_channel)
-                                  : pico_online_check_channel(s_upgrade_channel);
+    esp_err_t error = save_tf ? pico_online_save_anki_tf()
+                              : downloading ? pico_online_download_channel(s_upgrade_channel)
+                                            : pico_online_check_channel(s_upgrade_channel);
     pico_online_get_status(&s_update);
     if (error == ESP_OK) return APP_REDRAW_NONE;
     s_upgrade_offer_pending = false;
@@ -421,6 +423,14 @@ static void draw_upgrade_notes(uint8_t *fb) {
 }
 static EpdRect upgrade_confirm_button(bool online, bool accept) {
     return (EpdRect){accept ? 364 : 60, online ? 842 : 613, 260, 64};
+}
+// 中文：同基线原版确认页的第三按钮——把 Anki 版固件下载到 TF 卡，供升级原版后手动装回。
+// English: The third button on the same-base official confirm page — save the Anki image to the
+//          TF card so it can be restored through the local TF update after the upgrade.
+static EpdRect upgrade_anki_tf_button(void) { return (EpdRect){60, 726, 564, 64}; }
+static bool upgrade_official_same_base(void) {
+    return s_upgrade_online && s_update.channel == PICO_OTA_CHANNEL_OFFICIAL &&
+        s_update.same_base_official && s_update.state == PICO_UPDATE_AVAILABLE;
 }
 static void upgrade_open(void) {
     (void)pico_ota_inspect(PICO_OTA_UPDATE_PATH, &s_local_update);
@@ -1432,8 +1442,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_text(fb, 60, 224, 22, "当前版本", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 60, 264, 29, esp_app_get_description()->version, EPD_DRAW_ALIGN_LEFT, false);
         if (s_upgrade_confirm) {
+            const bool same_base = upgrade_official_same_base();
             settings_card(fb, (EpdRect){36, 356, 612, s_upgrade_online ? 574 : 344}, 22, UI_GRAY_WHITE, 0x70);
-            ui_text_fixed(fb, 60, 383, 31, s_upgrade_online ? "发现新版本" : "确认 TF 卡升级", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_fixed(fb, 60, 383, 31, s_upgrade_online ? (same_base ? "官方原版可升级" : "发现新版本") : "确认 TF 卡升级", EPD_DRAW_ALIGN_LEFT, false);
             // 中文：确认页右上角标出通道，避免把 Anki 版更新误当成官方更新。
             // English: The confirm page names its channel so an Anki update is never mistaken for the official one.
             if (s_upgrade_online)
@@ -1442,10 +1453,19 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
                     EPD_DRAW_ALIGN_LEFT, false);
             if (s_upgrade_online) {
                 ui_text_fixed(fb, 60, 494, 26, "本次更新", EPD_DRAW_ALIGN_LEFT, false);
-                draw_upgrade_notes(fb);
+                if (same_base) {
+                    // 同基线原版：说明影响，并给出 TF 卡备份入口（第三按钮）。
+                    // Same-base official build: explain the impact and offer the TF-card backup.
+                    ui_text_fixed(fb, 60, 540, 23, "升级将移除 Anki 学习功能（卡组与进度保留在存储中，", EPD_DRAW_ALIGN_LEFT, false);
+                    ui_text_fixed(fb, 60, 576, 23, "刷回 Anki 版后可继续使用）。", EPD_DRAW_ALIGN_LEFT, false);
+                    ui_text_fixed(fb, 60, 612, 23, "可先把 Anki 版固件下载到 TF 卡，升级原版后在", EPD_DRAW_ALIGN_LEFT, false);
+                    ui_text_fixed(fb, 60, 648, 23, "「TF 卡升级」中装回。", EPD_DRAW_ALIGN_LEFT, false);
+                } else draw_upgrade_notes(fb);
             }
-            ui_text_fixed(fb, 60, s_upgrade_online ? 770 : 513, 24, "升级期间请保持供电", EPD_DRAW_ALIGN_LEFT, false);
-            ui_text_fixed(fb, 60, s_upgrade_online ? 806 : 560, 23, "设置、阅读记录与 TF 卡文件保留", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_fixed(fb, 60, s_upgrade_online ? (same_base ? 690 : 770) : 513, 24, "升级期间请保持供电", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_fixed(fb, 60, s_upgrade_online ? (same_base ? 724 : 806) : 560, 23, "设置、阅读记录与 TF 卡文件保留", EPD_DRAW_ALIGN_LEFT, false);
+            if (same_base)
+                ui_draw_button(fb, upgrade_anki_tf_button(), s_update.busy ? "正在下载 Anki 版到 TF 卡" : "下载 Anki 版固件到 TF 卡（推荐）", !s_update.busy);
             ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, false), s_upgrade_online ? "稍后" : "取消", false);
             ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, true), s_upgrade_online ? "开始更新" : "确认升级", true);
         } else {
@@ -2440,6 +2460,21 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
                         upgrade_schedule(true, s_update.channel, esp_timer_get_time() / 1000);
                     } else s_local_pending = true;
                 }
+                return APP_REDRAW_PAGE;
+            }
+            // 同基线原版：第三按钮把 Anki 版固件下载到 TF 卡，供升级后手动装回。
+            // Same-base official build: the third button saves the Anki image to the TF card.
+            if (upgrade_official_same_base() && ui_rect_hit(upgrade_anki_tf_button(), ev->x0, y)) {
+                s_upgrade_confirm = false;
+                s_upgrade_offer_pending = false;
+                s_upgrade_channel = PICO_OTA_CHANNEL_ANKI;
+                s_upgrade_job = UPGRADE_JOB_SAVE_TF;
+                s_update.channel = PICO_OTA_CHANNEL_ANKI;
+                s_update.state = PICO_UPDATE_CHECKING;
+                s_update.busy = true;
+                s_update.received = 0;
+                snprintf(s_update.message, sizeof(s_update.message), "%s", "正在连接并获取 Anki 版固件");
+                upgrade_remember(esp_timer_get_time() / 1000);
                 return APP_REDRAW_PAGE;
             }
             return APP_REDRAW_NONE;
