@@ -19,7 +19,7 @@ enum {READING,SHELF,READER_PANEL_NONE,READER_PANEL_OTHER,MODE_DU,EPD_DRAW_ALIGN_
 enum EpdDrawError {EPD_DRAW_SUCCESS,EPD_DRAW_OTHER_ERROR};
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_DONE} app_redraw_t;
 typedef struct {bool touched;} touch_t;
-typedef struct {void *hl;int64_t now_ms;bool consumed,request_app,request_return,request_menu;touch_t *touch;} app_ctx_t;
+typedef struct {void *hl;uint8_t *fb;int64_t now_ms;bool consumed,request_app,request_return,request_menu;touch_t *touch;} app_ctx_t;
 #define UI_LOCK_WIDTH 684
 #define UI_GRAY_LIGHT 192
 #define READER_TOOL_ICON_PX 40
@@ -37,7 +37,6 @@ static bool immersive;
 static bool app_settings_reader_immersive(void){return immersive;}
 static bool s_reader_fullscreen=false,s_toolbar,s_clear_confirm,s_reader_footer_pending,s_save_failed;
 static const char *s_text="body";
-static size_t s_chapter=36,total_chapters=48;
 static int64_t s_reader_footer_due_ms;
 static int calls,guards,text_calls,bar_calls,fill_calls,status_calls;
 static void ui_nav_status(uint8_t *fb){(void)fb;++status_calls;}
@@ -55,22 +54,40 @@ static void ui_hairline(uint8_t *fb,int y,int x,int width,int gray){(void)fb;ass
 static enum EpdDrawError error;
 static const char *expected_chapter="Chapter name";
 static unsigned percent(size_t page){return (unsigned)page;}
-static size_t book_chapter_count(void){return total_chapters;}
 static void fit_fixed_text(char *text,int px,int width){assert(px>0&&width>0);(void)text;}
 static int ui_text_fixed_width_px(int px,const char *text){return (int)strlen(text)*px/2;}
 static void reader_footer_chapter_name(char *text,size_t cap){snprintf(text,cap,"%s",expected_chapter);}
 static void ui_fill_rect_fast(EpdRect r,int color,uint8_t *fb){(void)fb;assert(color==255||color==UI_NAV_BACKGROUND_GRAY);if(s_reader_fullscreen&&immersive)assert(r.y==1204&&r.height==12);else if(r.y==0)assert(r.height==(s_reader_fullscreen?80:152));else if(!s_reader_fullscreen&&r.y==152)assert(r.height==24&&r.width==684&&color==UI_GRAY_WHITE);else assert(r.y==(s_reader_fullscreen?1168:1048));++fill_calls;}
 static void ui_reader_background_paint(uint8_t *fb,EpdRect r,bool overlay){(void)fb;(void)r;assert(overlay);}
+/* rc108 的页脚局部刷新走真实脏区计算：提供最小 hl/帧缓冲与几何桩。*/
+/* rc108's footer partial refresh runs the real dirty-region path: minimal hl/framebuffer/geometry stubs.*/
+static size_t test_pages=48,expected_page=74,s_page=36;
+static size_t book_layout_page_count(void){return test_pages;}
+/*rc108 的脏区计算在横排物理缓冲上做四邻域差分：epd 宽高取横排尺寸，旋转映射用真实实现。*/
+/*rc108 computes the dirty region on the landscape physical buffer: landscape epd sizes and the real rotation mapping.*/
+static int epd_width(void){return 1216;}
+static int epd_height(void){return 684;}
+enum {EPD_ROT_LANDSCAPE,EPD_ROT_PORTRAIT,EPD_ROT_INVERTED_LANDSCAPE,EPD_ROT_INVERTED_PORTRAIT};
+static int epd_get_rotation(void){return EPD_ROT_PORTRAIT;}
+static void ui_text_set_system_scale(bool on){(void)on;}
+static uint8_t front_bytes[684*(1216/2)],back_bytes[684*(1216/2)];
+typedef struct {uint8_t *front_fb,*back_fb;} EpdiyHighlevelState;
+static EpdiyHighlevelState test_hl={front_bytes,back_bytes};
+static void lock_draw(void){}
+static void unlock_draw(void){}
+static int64_t esp_timer_get_time(void){return 1550000;}
 static void ui_text_fixed_vc(uint8_t *fb,int x,int y,int px,const char *text,int align,bool inverted){
  (void)fb;assert(y==(s_reader_fullscreen?1180:1060)&&px==21&&!inverted);
- if(x==652){assert(align==EPD_DRAW_ALIGN_RIGHT&&!strcmp(text,"37/48  74%"));}
+ if(x==652){char expected[48];unsigned current=(unsigned)(expected_page<test_pages?expected_page+1:test_pages);
+  snprintf(expected,sizeof(expected),"%u/%u  %u%%",current,(unsigned)test_pages,(unsigned)expected_page);
+  assert(align==EPD_DRAW_ALIGN_RIGHT&&!strcmp(text,expected));}
  else assert(x==32&&align==EPD_DRAW_ALIGN_LEFT&&!strcmp(text,expected_chapter));
  ++text_calls;
 }
 static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int color){
  (void)fb;int width=(s_reader_fullscreen&&immersive)?612:648;
  assert(r.x==((s_reader_fullscreen&&immersive)?36:18)&&r.y==((s_reader_fullscreen&&immersive)?1207:(s_reader_fullscreen?1194:1074))&&r.height==((s_reader_fullscreen&&immersive)?3:6)&&radius==((s_reader_fullscreen&&immersive)?1:3));
- assert(r.width==(color?width:width*74/100));++bar_calls;
+ assert(r.width==(color?width:width*(int)expected_page/100));++bar_calls;
 }
 static enum EpdDrawError reader_present_crop(void *hl,const int *wave,int mode,EpdRect area,bool full){
  (void)hl;assert(wave==&E0470_FOLLOW_WAVEFORM&&mode==MODE_DU&&!full);
@@ -78,29 +95,34 @@ static enum EpdDrawError reader_present_crop(void *hl,const int *wave,int mode,E
 }
 
 static void guard_draw_result(void *hl,enum EpdDrawError result){(void)hl;assert(result==error);++guards;}
+#define update_display_reader_area reader_present_crop
 '''
-for name in ['draw_reader_header','progress_rect','reader_footer_progress', 'draw_reader_metadata', 'reader_metadata_tick','reader_status_visible']:
+unit += function('ui_rotate_rect_to_fb', ROOT/'main/ui/ui_kit.c')+'\n'
+for name in ['draw_reader_header','progress_rect','reader_footer_progress', 'draw_reader_footer', 'reader_footer_dirty', 'present_reader_footer', 'draw_reader_metadata', 'reader_metadata_tick','reader_status_visible']:
     unit += function(name, source)+'\n'
 unit += r'''
 int main(void){
- char text[48];reader_footer_progress(text,sizeof(text),74);assert(!strcmp(text,"37/48  74%"));
- total_chapters=0;reader_footer_progress(text,sizeof(text),0);assert(!strcmp(text,"0/0  0%"));total_chapters=48;
- s_chapter=99;reader_footer_progress(text,sizeof(text),100);assert(!strcmp(text,"48/48  100%"));s_chapter=36;
+ memset(back_bytes,0xFF,sizeof(back_bytes));/*让页脚区域前后帧全异：脏区=整个 footer*/
+ char text[48];reader_footer_progress(text,sizeof(text),74);assert(!strcmp(text,"48/48  74%"));
+ test_pages=0;reader_footer_progress(text,sizeof(text),0);assert(!strcmp(text,"0/0  0%"));test_pages=48;
+ reader_footer_progress(text,sizeof(text),100);assert(!strcmp(text,"48/48  100%"));
  s_reader_fullscreen=false;uint8_t none=0;
  for(int style=0;style<2;++style){
   immersive=style;s_reader_favorite=style;text_calls=bar_calls=fill_calls=status_calls=0;title_calls=back_calls=favorite_calls=0;
+  expected_page=74;
   draw_reader_header(&none);draw_reader_metadata(&none,74);
   assert(status_calls==1&&text_calls==2&&bar_calls==2&&fill_calls==3&&reader_status_visible());
   assert(title_calls==1&&back_calls==1&&favorite_calls==1&&ui_reader_body(false,style,24,false).y==(style?16:84));
-  app_ctx_t ctx={.now_ms=1000};s_reader_footer_pending=true;s_reader_footer_due_ms=900;
+  app_ctx_t ctx={.now_ms=1000,.hl=&test_hl,.fb=&none};s_reader_footer_pending=true;s_reader_footer_due_ms=900;
+  expected_page=36;
   assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&!s_reader_footer_pending);
  }
  for(int full=0;full<2;++full){
  s_reader_fullscreen=true;immersive=full;s_reader_footer_pending=false;s_view=READING;calls=guards=text_calls=bar_calls=fill_calls=0;
  assert(reader_status_visible()==!full);status_calls=0;title_calls=back_calls=favorite_calls=0;
- uint8_t fb=0;draw_reader_metadata(&fb,74);assert(text_calls==(full?0:2)&&bar_calls==2&&fill_calls==(full?1:2)&&status_calls==(full?0:1));
+ uint8_t fb=0;expected_page=74;draw_reader_metadata(&fb,74);assert(text_calls==(full?0:2)&&bar_calls==2&&fill_calls==(full?1:2)&&status_calls==(full?0:1));
  assert(ui_reader_body(true,false,24,false).y==84&&ui_reader_header().height==80&&!title_calls&&!back_calls&&!favorite_calls);
- touch_t touch={0};app_ctx_t ctx={.now_ms=100,.touch=&touch};
+ touch_t touch={0};app_ctx_t ctx={.now_ms=100,.touch=&touch,.hl=&test_hl,.fb=&none};expected_page=36;
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&!calls);
  s_reader_footer_pending=true;s_reader_footer_due_ms=900;
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&!calls);
