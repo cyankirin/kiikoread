@@ -568,7 +568,9 @@ int main(void) {
     assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_NONE&&remote_ctx.leaf==2);
     assert(shelf_turn_page(&remote_ctx,-1)==APP_REDRAW_AREA&&remote_ctx.leaf==1);
     s_scan_pending=true;
-    assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_NONE&&remote_ctx.leaf==1);
+    /*rc108 起后台索引不再阻塞已有内容的翻页（shelf_waiting_for_index 只在无可见内容时挂起）。*/
+    /*Since rc108 a background scan no longer blocks paging when content is visible.*/
+    assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_AREA&&remote_ctx.leaf==2);
     s_scan_pending=false;s_view=MANAGE;
     assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_NONE);
     EpdRect left=shelf_page_arrow_rect(-1),right=shelf_page_arrow_rect(1);
