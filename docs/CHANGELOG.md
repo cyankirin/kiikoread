@@ -1,5 +1,20 @@
 # 版本变更 / Changelog
 
+## 小纸 PICO 0.3.3-rc108 / Metalio S31 0.3.3-rc114 — 2026-11-16
+
+- **双机型**：提前准备书架首页，进入书架后继续预热后续页。缓存封面整页显示，切页和开书可打断后台工作。
+- **双机型**：书架管理新增一键获取 TXT 封面。支持微信读书和 Z-Library、模糊匹配、手选候选小图及 TF 卡缓存。缺少封面时使用统一的书名封面。
+- **双机型**：票根读取实际章节位置，按正文停留时间统计阅读时长。阅星瞳导入校验 TXT 完整性，开书异常后跳过该书自动续读。
+- **PICO**：阅读页脚页码使用局部刷新，继续阅读模块去掉浅灰背景。
+- **S31**：短锁屏保留 TF 挂载，浅睡唤醒集中恢复，按设置单击或双击唤醒，并沿用 RC113 的翻页参数。修复获取封面时的 Wi-Fi 重启和 HTTPS 收包失败。
+
+Both boards prewarm shelf pages, batch ready cover updates, fetch TXT covers from WeRead and Z-Library, cache selections on the TF card, and align ticket chapters and reading time with the reader. PICO refreshes page numbers locally. S31 retains TF mounts during brief locks, applies the configured wake gesture, keeps RC113 page-turn settings, and improves cover-fetch network stability.
+
+## Metalio S31 0.3.3-rc113 — 2026-11-12
+
+- 修复首次进入书架时只显示底部封面、加载提示停留的问题。书架先显示书名和已就绪的封面，后台完成一批就补画一批，加载结束后自动清除提示。
+- Fix missing covers and a stuck loading message on first shelf entry. Show titles and ready covers while the rest load, then automatically clear the loading hint.
+
 ## 正式发布 / Release — 2026-11-12
 
 - **小纸 PICO 0.3.3-rc107、Metalio S31 0.3.3-rc112**：设置列表快速滑动松手后直接滚动约半屏，松手即清理残影。阅读缓存迁入 TF 卡的 `.kiikoread` 目录。
@@ -7,6 +22,17 @@
 - **S31**：合入 Moku 的书架封面缓存与失败重试、低内存 Wi-Fi 和传书优化、阅读页脚本章页码、跨文件脚注修复与手动屏幕修复。星瞳云同步上报 S31 型号 `metalio47`。
 
 Both boards scroll about half a page after a quick flick and clear list ghosting on release. Reader caches use `.kiikoread`. PICO restores the RC104 reader and home refresh behavior and verifies panel power-off before light sleep. S31 incorporates Moku’s shelf, networking, reader and panel-repair improvements.
+
+## 本地测试 / Local test — 2026-11-12
+
+- S31 阅读翻页回退：rc111 起产品/CI 构建默认开启的 S31 实验档（`--s31-pie`、`--s31-text-ripple`、`--s31-reader-panel37`）导致实机阅读翻页效果明显变差；现产品/默认构建恢复原生48相阅读翻页与C像素算子，实验改为仅显式本地开关，且只作用于 S31（Pico 不变）。以 rc112 源码的无实验构建（sha256 `6d73dced71a3be1a44fd6916738756f6c55ee20b9579978a9d2048c24313f576`）真机验证翻页效果恢复。本地测试，未发布官网/OTA。
+  S31 reader-turn rollback: the S31 experiments (`--s31-pie`, `--s31-text-ripple`, `--s31-reader-panel37`) that product/CI builds enabled by default from rc111 visibly degraded page turns on hardware. Product/default builds now restore the native 48-phase reader turn and C pixel kernels; the experiments remain explicit local opt-ins and affect S31 only (Pico unchanged). Verified on hardware with an experiment-free build of the rc112 source (sha256 `6d73dced71a3be1a44fd6916738756f6c55ee20b9579978a9d2048c24313f576`). Local test only; nothing is published.
+
+- S31 阅读抗锯齿：Debug 调试页新增「抗锯齿微调 AA」，可实时调整覆盖率 gamma、补字边缘偏置、补字墨量，样例含正文/大字/补字字形，当前值显示在屏上并打印到串口。实机手动微调后固化 S31 默认：gamma `0.800`、补字边缘偏置 `256`、补字墨量 `122%`；Pico 的覆盖率/补字默认保持原值。以 rc113 源码构建（sha256 `c35b7779ed205e485a856e4702d7e4d7cc9e5766193f94df3027ba286d8f596d`）烧录验证。本地测试，未发布官网/OTA。
+  S31 reader anti-aliasing: the boot Debug page gains an "AA tuning" screen for coverage gamma, supplement edge bias and supplement ink percent, with live body/large/supplement samples, on-screen values and serial logging. After hardware tuning the S31 defaults are baked to gamma `0.800`, supplement edge bias `256` and ink `122%`; Pico's coverage/supplement defaults are unchanged. Verified with an rc113-source build (sha256 `c35b7779ed205e485a856e4702d7e4d7cc9e5766193f94df3027ba286d8f596d`). Local test only; nothing is published.
+
+- S31 XTH 云壁纸：星瞳云下发的壁纸为 `.xth`（22 字节小端头 + 双位平面、列主序、4 级灰阶），此前被当作不支持类型拒绝。现在云同步会校验头部/尺寸并保存到 `Pictures`；设置壁纸/锁屏、图片页、阅读背景和文件管理均支持 `.xth` 的预览与选用（解码按官方 xtx SPEC：从右到左列主序、MSB 在上，4 级映射白/深灰/浅灰/黑并按比例裁切填满）。以 rc113 源码构建（sha256 `890337348146d36f5abae57f9db765b4ed3da9e403c642116da13b4edb1ad68a`）烧录验证。Pico 使用同一份解码与壁纸/云同步共享代码，并同步更新 Pico 专属的图片页/文件管理/壁纸列表覆盖；Pico rc107 构建通过（sha256 `c34fc26d908ca7f855a88a7f688dad5ac575b68933a3c61c1570ce968164d605`），实机烧录验证待连接 Pico 后补测。本地测试，未发布官网/OTA。
+  S31 XTH cloud wallpapers: the Xteink cloud delivers wallpapers as `.xth` (22-byte little-endian header plus column-major dual bit-planes, four gray levels), which used to be rejected as an unsupported type. Cloud sync now validates the header/size and saves them to `Pictures`; wallpapers/lock, the image page, reader backgrounds and Files all preview and select `.xth` (decoded per the official xtx SPEC: right-to-left column-major, MSB topmost, levels mapped to white/dark gray/light gray/black and cropped to fill). Verified with an rc113-source build (sha256 `890337348146d36f5abae57f9db765b4ed3da9e403c642116da13b4edb1ad68a`). Pico shares the same decoder, wallpaper and cloud-sync sources, with its own image page, Files and wallpaper-list overlays updated as well; the Pico rc107 build passes (sha256 `c34fc26d908ca7f855a88a7f688dad5ac575b68933a3c61c1570ce968164d605`), with hardware verification pending until a Pico is connected. Local test only; nothing is published.
 
 ## 本地测试 / Local test — 2026-11-11
 
