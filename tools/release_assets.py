@@ -4,6 +4,7 @@
 English: Release binaries are verified into the site staging directory, never back into source.
 """
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import hashlib
 import json
@@ -12,7 +13,15 @@ import re
 import shutil
 import time
 
-REPO = 'https://github.com/wegooo-cell/read-pico-reader/releases/download/'
+# 中文：资产先在本仓库（Anki fork）的 Release 里找，缺失（如仅存于上游的历史版本）再回退到
+#       上游官方 Release。两个源都做同样的 SHA-256 校验，字节不变。
+# English: Look up assets in this repository's (Anki fork) Releases first, then fall back to the
+#       upstream official Releases for assets that only exist there (e.g. historical versions).
+#       Both sources go through the same SHA-256 verification; bytes are unchanged.
+REPO_BASES = (
+    'https://github.com/cyankirin/kiikoreader-anki/releases/download/',
+    'https://github.com/wegooo-cell/read-pico-reader/releases/download/',
+)
 
 def hydrate(source: Path, output: Path) -> None:
     catalog = source / 'release-assets.json'
@@ -50,17 +59,18 @@ def _hydrate_files(source: Path, output: Path, release: dict, maximum: int = 0x4
             assert cached.stat().st_size == info['size'] and hashlib.sha256(cached.read_bytes()).hexdigest() == info['sha256'], 'Release alias checksum mismatch'
             shutil.copy2(cached, target)
             continue
-        url = REPO + release['tag'] + '/' + asset
-        # 中文：GitHub 偶尔对 Release 直链返回 504，部署因此中断过多次；下载失败按指数退避
-        #       重试（5/10/20/40 秒 + 抖动），但校验失败属于真实不一致，必须立刻失败。
-        # / GitHub intermittently answers Release downloads with 504, which used to abort
-        #   the deploy. Retry transport failures with exponential backoff (5/10/20/40 s plus
-        #   jitter), but let a checksum/length mismatch fail immediately — that is real.
         data = None
         for attempt in range(5):
             try:
-                with urlopen(Request(url, headers={'User-Agent': 'kiikoread-publisher'}), timeout=60) as response:
-                    data = response.read(info['size'] + 1)
+                for base in REPO_BASES:
+                    try:
+                        with urlopen(Request(base + release['tag'] + '/' + asset, headers={'User-Agent': 'kiikoread-publisher'}), timeout=60) as response:
+                            data = response.read(info['size'] + 1)
+                        break
+                    except HTTPError as exc:
+                        if exc.code == 404:
+                            continue  # 本仓库没有该资产，回退到下一个源。/ Asset absent here; try the next source.
+                        raise
                 break
             except Exception as exc:
                 if attempt == 4:

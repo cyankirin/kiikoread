@@ -62,7 +62,11 @@ def stage_metalio(flash: Path, output: Path) -> None:
     assert feed['board']=='Metalio-EINK4-Plus-S31' and feed['layout']=='metalio-s31-dual-5m-v1'
     assert feed['minimum_base_version']=='0.3.3-rc98'
     assert feed['size']==len(app) and feed['sha256']==hashlib.sha256(app).hexdigest()
-    assert feed['url']=='https://wegooo-cell.github.io/read-pico-reader/'+fixed
+    # 中文：OTA feed 的下载地址允许上游站点或 Anki fork 站点（两个部署根都真实暂存了该文件）。
+    # English: The OTA feed download URL may live on the upstream site or the Anki fork site
+    #          (both deploy roots stage the same file).
+    assert feed['url'] in ('https://wegooo-cell.github.io/read-pico-reader/'+fixed,
+                           'https://cyankirin.github.io/kiikoreader-anki/'+fixed)
     assert isinstance(feed['notes'],str) and 0<len(feed['notes'].encode())<384
     shutil.copy2(flash/'metalio-s31-update.json',output/'metalio-s31-update.json')
     # 历史版本必须来自原 Release，所有旧网址保留原字节。 / Historical URLs retain original Release bytes.
