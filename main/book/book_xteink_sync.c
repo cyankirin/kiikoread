@@ -23,6 +23,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,6 +52,7 @@
 
 #include "book_cover.h"
 #include "book_store.h"
+#include "book_source_internal.h"
 #include "settings.h"
 
 #define XTEINK_BASE_URL "https://api-prod.xteink.cn"
@@ -656,6 +658,7 @@ typedef enum {
     XTEINK_FILE_TEXT,
     XTEINK_FILE_PNG,
     XTEINK_FILE_JPEG,
+    XTEINK_FILE_XTH,
     XTEINK_FILE_OTHER,
 } xteink_file_kind_t;
 
@@ -667,6 +670,9 @@ static xteink_file_kind_t file_kind(const char* name) {
     if (!strcasecmp(dot, ".txt")) return XTEINK_FILE_TEXT;
     if (!strcasecmp(dot, ".png")) return XTEINK_FILE_PNG;
     if (!strcasecmp(dot, ".jpg") || !strcasecmp(dot, ".jpeg")) return XTEINK_FILE_JPEG;
+    // 星瞳云端壁纸为 XTH（4 级灰阶），保存到 Pictures 供壁纸/锁屏直接选用。
+    // Xteink cloud wallpapers arrive as XTH (4-level gray) and land in Pictures for wallpapers/locks.
+    if (!strcasecmp(dot, ".xth")) return XTEINK_FILE_XTH;
     return XTEINK_FILE_OTHER;
 }
 
@@ -700,16 +706,41 @@ static bool verify_font(const char *path) {
     fclose(file);return ok&&cmap&&head&&metrics&&outline;
 }
 
-static bool verify_text(const char* path) {
+static bool verify_text(const char *path, uint64_t downloaded) {
     struct stat st;
-    if (stat(path, &st) || st.st_size <= 0) return false;
-    FILE* file = fopen(path, "rb");
-    uint8_t buffer[1024];
-    size_t length = file ? fread(buffer, 1, sizeof(buffer), file) : 0;
-    if (file) fclose(file);
-    for (size_t i = 0; i < length; ++i)
-        if (buffer[i] == 0) return false;
-    return length > 0;
+    if (stat(path, &st) || !S_ISREG(st.st_mode) || st.st_size <= 0 ||
+        (uint64_t)st.st_size != downloaded || downloaded > UINT32_MAX ||
+        downloaded > (uint64_t)LONG_MAX - 4) return false;
+    FILE *file = fopen(path, "rb");
+    if (!file) return false;
+    const size_t block = KIIKO_BOARD_METALIO47 ? BOOK_TXT_PROBE_BYTES + 1u : 4096u;
+    uint8_t *buffer = heap_caps_malloc(block, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!buffer) { fclose(file); return false; }
+    size_t length = fread(buffer, 1, block, file);
+    bool valid = length > 0;
+    bool utf16 = false;
+#if KIIKO_BOARD_METALIO47
+    uint32_t bom = 0;
+    const size_t sample = length < BOOK_TXT_PROBE_BYTES ? length : BOOK_TXT_PROBE_BYTES;
+    utf16 = book_txt_detect_utf16(buffer, sample, &bom) != 0;
+    if (utf16) valid = downloaded > bom && downloaded % 2 == 0;
+#endif
+    uint64_t read = 0;
+    while (valid && length && !s_cancel) {
+        if (utf16) {
+            for (size_t i = 0; i + 1 < length; i += 2) {
+                if (buffer[i] == 0 && buffer[i + 1] == 0) { valid = false; break; }
+            }
+        } else if (memchr(buffer, 0, length)) valid = false;
+        const uint64_t before = read;
+        read += length;
+        if (!valid || read > downloaded) break;
+        if ((before >> 18) != (read >> 18)) vTaskDelay(1);
+        length = fread(buffer, 1, block, file);
+    }
+    valid = valid && !s_cancel && read == downloaded && !ferror(file);
+    heap_caps_free(buffer);
+    return fclose(file) == 0 && valid;
 }
 
 static bool verify_epub(const char* path) {
@@ -742,6 +773,19 @@ static bool verify_image(const char *path, bool png) {
     uint8_t *sample=heap_caps_malloc(32u*32u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     if(!sample)return false;
     bool ok=book_image_file_grayscale(path,png,32,32,sample);
+    heap_caps_free(sample);return ok;
+}
+
+// 云端 XTH 壁纸：校验头/尺寸并做一次小尺寸解码，原文件不改写。
+// Validate an XTH wallpaper header/dimensions with one small decode; the original file stays untouched.
+static bool verify_xth(const char *path) {
+    struct stat st;
+    if(stat(path,&st)||!S_ISREG(st.st_mode)||st.st_size<=0||(uint64_t)st.st_size>BOOK_IMAGE_FILE_MAX)return false;
+    unsigned width=0,height=0;
+    if(!book_image_xth_dimensions(path,&width,&height)||!width||!height)return false;
+    uint8_t *sample=heap_caps_malloc(32u*32u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!sample)return false;
+    const bool ok=book_image_file_xth_grayscale(path,32,32,sample);
     heap_caps_free(sample);return ok;
 }
 
@@ -863,7 +907,7 @@ static int download_file(const char* url, const char* save_path, const char* inc
     }
     const xteink_file_kind_t kind=file_kind(name);
     if(kind==XTEINK_FILE_OTHER)return 4;
-    const bool image=kind==XTEINK_FILE_PNG||kind==XTEINK_FILE_JPEG;
+    const bool image=kind==XTEINK_FILE_PNG||kind==XTEINK_FILE_JPEG||kind==XTEINK_FILE_XTH;
     if(image&&!read_pico_sd_io_ready()) {
         snprintf(s_download_error,sizeof(s_download_error),"请先插入并挂载TF卡");return 3;
     }
@@ -929,12 +973,16 @@ static int download_file(const char* url, const char* save_path, const char* inc
     if(s_cancel){unlink(temp);return 1;}
     bool verified = kind == XTEINK_FILE_EPUB   ? verify_epub(temp)
                     : kind == XTEINK_FILE_FONT ? verify_font(temp)
+                    : kind == XTEINK_FILE_XTH  ? verify_xth(temp)
                     : image ? verify_image(temp,kind==XTEINK_FILE_PNG)
-                                               : verify_text(temp);
+                                               : verify_text(temp, ctx.written);
     if (!verified||s_cancel) {
         ESP_LOGE(TAG, "verify failed: %s kind=%d", name, (int)kind);
         unlink(temp);
-        if(image&&!s_cancel)snprintf(s_download_error,sizeof(s_download_error),"图片解码失败，请使用非交错PNG或JPG");
+        if(image&&!s_cancel)snprintf(s_download_error,sizeof(s_download_error),
+            kind==XTEINK_FILE_XTH?"XTH 壁纸格式错误":"图片解码失败，请使用非交错PNG或JPG");
+        if (kind == XTEINK_FILE_TEXT && !s_cancel)
+            snprintf(s_download_error, sizeof(s_download_error), "TXT 文件不完整或编码异常");
         return 2;
     }
     const char* target_dir = image ? XTEINK_PICTURES_DIR
@@ -1036,7 +1084,7 @@ static void pull_tasks(void) {
             const char *basename=strrchr(item->save_path,'/');
             xteink_file_kind_t kind=file_kind(basename?basename+1:item->save_path);
             item->is_font=kind==XTEINK_FILE_FONT;
-            item->is_image=kind==XTEINK_FILE_PNG||kind==XTEINK_FILE_JPEG;
+            item->is_image=kind==XTEINK_FILE_PNG||kind==XTEINK_FILE_JPEG||kind==XTEINK_FILE_XTH;
             cJSON* size = json_find(task, "size");
             if (cJSON_IsNumber(size)) item->size = (uint32_t)size->valuedouble;
             ++count;
