@@ -88,7 +88,7 @@
       if(catalog.schema!==1||!Array.isArray(catalog.releases))throw Error('Invalid catalog');
       for(const release of catalog.releases){
         const path=device==='pico'?`releases/${release.version}/manifest.json`:`metalio/releases/${release.version}/manifest.json`;
-        if(!/^\d+\.\d+\.\d+(?:-rc\d+)?$/.test(release.version)||release.manifest!==path||release.bin!==`${model.prefix}-${release.version}.bin`||releases.has(release.manifest))throw Error('Invalid release');
+        if(!/^\d+\.\d+\.\d+(?:-rc\d+(?:\.\d+)?)?$/.test(release.version)||release.manifest!==path||release.bin!==`${model.prefix}-${release.version}.bin`||releases.has(release.manifest))throw Error('Invalid release');
         releases.set(release.manifest,release);
         selector.appendChild(Object.assign(document.createElement('option'),{value:release.manifest,textContent:`${release.version} · ${release.version===catalog.previous_version?(device==='metalio'?'上一版本':'上一正式版'):'历史版本'}`}));
       }
