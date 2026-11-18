@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "0.3.3-rc114.01",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "0.3.3-rc98",
+  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc114.01.bin",
+  "size": 5232096,
+  "sha256": "958a0654fa945f2e2216260d396932b79e9b2de9c04eeafd21b9b7521f2bf707",
+  "notes": "新增 Anki 学习：文件页点 .apkg 导入卡组，正面/背面复习，含填空与单选、多选题型，错误反色，进度备份恢复。首页顶栏新增 Anki 入口，其余功能与 rc114 相同。"
+}

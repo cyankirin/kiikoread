@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from verify_flash_bundle import (check, check_archived_releases, check_anki_bundle,
                                   check_anki_ota, check_anki_releases, check_anki_site)
 from release_assets import hydrate
-from metalio_release_assets import stage_metalio
+from metalio_release_assets import stage_metalio, stage_metalio_anki
 from stage_anki_flash import stage as stage_anki, verify as verify_anki
 from stage_changelog import stage as stage_changelog
 
@@ -123,6 +123,10 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
     if versioned.is_file(): shutil.copy2(versioned, output / versioned.name)
     hydrate(FLASH, output)
     stage_metalio(FLASH, output)
+    # 中文：Anki 版专用刷机页（/metalio-anki/），与原版 /metalio/ 完全分开；同一套完整性闸门。
+    # English: The dedicated Anki-edition flasher (/metalio-anki/), fully separated from the
+    #        official /metalio/; the same integrity gates apply.
+    stage_metalio_anki(FLASH, output)
     # 中文：本 fork 的 Anki 版入口（/kiikoread-anki/）。清单与 bin 每次现场生成：优先用本次
     #      构建的包，没有构建包时用上面已校验过的站点镜像做基础部件、用 firmware/ 里入库的
     #      应用镜像，因此版本库中不需要保存重复的二进制。生成后仍要过两道校验才允许发布。

@@ -1,5 +1,10 @@
 # 版本变更 / Changelog
 
+## 刷机站 2026-11-18 — Metalio Anki 版专用刷机页
+
+- **站点**：刷机站迁移至 `https://cyankirin.github.io/kiikoread/`（仓库由 kiikoreader-anki 改名）；`/metalio/` 恢复为**原版固件**（厂长 rc114），新增 `/metalio-anki/` **Anki 版专用刷机页**（含完整校验的网页 USB 刷入、TF 包下载与 OTA feed `metalio-anki-s31-update.json`），两版完全分开、分区兼容可互切。顶部导航直达两台设备的在线刷机页。
+- **Site**: the flasher moved to `https://cyankirin.github.io/kiikoread/`; `/metalio/` serves the **official build** again, and a dedicated `/metalio-anki/` page now flashes the **Anki build** only (verified web-USB install, TF package and its own OTA feed). The two are fully separated and partition-compatible in both directions.
+
 ## Metalio S31 0.3.3-rc114.01 — 2026-11-17
 
 - **S31**：新增 Anki 学习页。文件页点击 `.apkg` 卡组包直接导入，首页顶栏新增 Anki 入口；正面/背面复习、填空题、单选与多选题型，错误答案反色，Anki 兼容调度与进度备份恢复。其余功能与 rc114 一致，构建旗标（PIE 像素、文字波纹、37 相阅读面板、设置短动效）与 rc114 发布版相同。Pico 不受影响，保持 `0.3.3-rc108.01`。

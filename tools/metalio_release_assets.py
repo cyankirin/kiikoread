@@ -94,3 +94,101 @@ def stage_metalio(flash: Path, output: Path) -> None:
     previous=manifest.get('previous_version')
     if previous:assert any(entry['version']==previous for entry in catalog['releases'])
     print(f'Metalio S31: {version}, {len(app)} bytes, independent 5 MiB slots, verified SHA-256')
+
+
+def stage_metalio_anki(flash: Path, output: Path) -> None:
+    """中文：Anki 版专用刷机页（/metalio-anki/）。与原版 /metalio/ 完全分开：本目录只发布
+             带 Anki 学习模块的固件，清单、资产与 OTA feed 独立，原版页面不受影响。
+    / English: The dedicated Anki-edition flasher (/metalio-anki/). Fully separated from the
+             official /metalio/: this directory publishes only the Anki build, with its own
+             manifest, assets and OTA feed; the official page is untouched.
+    """
+    source=flash/'metalio-anki'
+    manifest=json.loads((source/'manifest.json').read_text())
+    assets=json.loads((source/'release-assets.json').read_text())
+    version=manifest['version']
+    assert re.fullmatch(r'\d+\.\d+\.\d+-rc\d+(?:\.\d+)?',version)
+    assert assets['schema']==1 and assets['tag']=='metalio-s31-v'+version
+    assert manifest['board']=='metalio47' and manifest['project']=='Kiikoread_Metalio_S31'
+    assert manifest['new_install_prompt_erase'] is True
+    assert manifest['pico_ota']['layout']=='metalio-s31-dual-5m-v1'
+    builds=manifest['builds']
+    assert len(builds)==1 and builds[0]['chipFamily']=='ESP32-S31'
+    expected={'bootloader.bin':0x2000,'partitions.bin':0x8000,'firmware.bin':0x10000,'ota_data_initial.bin':0xd000}
+    assert len(builds[0]['parts'])==4 and set(assets['files'])==set(expected)
+    assert {p['path']:p['offset'] for p in builds[0]['parts']}==expected
+    for part in builds[0]['parts']:
+        info=assets['files'][part['path']]
+        assert part['size']==info['size'] and part['sha256']==info['sha256']
+    destination=output/'metalio-anki';destination.mkdir(parents=True,exist_ok=True)
+    _hydrate_files(source,destination,assets,maximum=0x500000)
+    for name in ('manifest.json','releases.json','index.html'):
+        shutil.copy2(source/name,destination/name)
+    app=(destination/'firmware.bin').read_bytes()
+    assert 288<=len(app)<=0x500000 and app[0]==0xe9 and struct.unpack_from('<H',app,12)[0]==32
+    assert struct.unpack_from('<I',app,32)[0]==0xabcd5432
+    assert app[48:80].split(b'\0')[0].decode()==version
+    assert app[80:112].split(b'\0')[0]==b'Kiikoread_Metalio_S31'
+    # Anki 版应用镜像必须确实带 Anki 页：注册表里应能找到 app_anki 的标志串，防止误把原版当 Anki 版发布。
+    # The Anki app image must really carry the Anki page: assert its registry signature, so the
+    # official build can never be published here by mistake.
+    assert b'app_anki' in app or b'Anki' in app, 'Anki build signature missing from app image'
+    boot=(destination/'bootloader.bin').read_bytes()
+    assert 0<len(boot)<=0x6000 and boot[0]==0xe9 and struct.unpack_from('<H',boot,12)[0]==32
+    table=(destination/'partitions.bin').read_bytes()
+    expected_parts=[('nvs',1,2,0x9000,0x4000),('otadata',1,0,0xd000,0x2000),('phy_init',1,1,0xf000,0x1000),('ota_0',0,16,0x10000,0x500000),('ota_1',0,17,0x510000,0x500000),('storage',1,0x81,0xa10000,0x5e0000),('coredump',1,3,0xff0000,0x10000)]
+    entries=[]
+    for at in range(0,len(table),32):
+        magic=struct.unpack_from('<H',table,at)[0]
+        if magic==0xebeb:
+            assert table[at+16:at+32]==hashlib.md5(table[:at]).digest()
+            assert table[at+32:]==b'\xff'*(len(table)-at-32)
+            break
+        assert magic==0x50aa
+        _,kind,sub,address,size,label,flags=struct.unpack_from('<HBBII16sI',table,at)
+        assert flags==0
+        entries.append((label.split(b'\0')[0].decode(),kind,sub,address,size))
+    else:raise AssertionError('Missing partition checksum')
+    assert entries==expected_parts
+    fixed=f'Metalio-S31-update-{version}.bin'
+    # 站点根的扁平版本化镜像：刷机页 prepare() 对最新版从这里取固件；TF 用户也从这里下载。
+    # Flat versioned image at the site root: prepare() fetches the app from here for the latest
+    # release, and TF users download the same file.
+    shutil.copy2(destination/'firmware.bin',output/fixed)
+    # Anki 版 OTA feed：设备端清单源（版本、大小、SHA-256 与应用镜像逐项一致）。
+    # The Anki OTA feed: every field must match the staged app image.
+    feed=json.loads((flash/'metalio-anki-s31-update.json').read_text())
+    assert feed['schema']==1 and feed['version']==version and feed['project']==manifest['project']
+    assert feed['board']=='Metalio-EINK4-Plus-S31' and feed['layout']=='metalio-s31-dual-5m-v1'
+    assert feed['minimum_base_version']=='0.3.3-rc98'
+    assert feed['size']==len(app) and feed['sha256']==hashlib.sha256(app).hexdigest()
+    assert feed['url'] in ('https://wegooo-cell.github.io/read-pico-reader/'+fixed,
+                           'https://cyankirin.github.io/kiikoread/'+fixed)
+    assert isinstance(feed['notes'],str) and 0<len(feed['notes'].encode())<384
+    shutil.copy2(flash/'metalio-anki-s31-update.json',output/'metalio-anki-s31-update.json')
+    # 历史版本目录（当前为空；后续 Anki 版本归档在这里，供专用页回退）。
+    # Historical archive directory (empty today; future Anki releases roll back from here).
+    catalog=json.loads((source/'releases.json').read_text())
+    history={}
+    for release in assets.get('historical',[]):
+        assert re.fullmatch(r'metalio-s31-v\d+\.\d+\.\d+-rc\d+(?:\.\d+)?',release['tag'])
+        fixed_old='Metalio-S31-update-'+release['tag'].removeprefix('metalio-s31-v')+'.bin'
+        assert set(release['files'])=={fixed_old}
+        _hydrate_files(flash,output,release,maximum=0x500000)
+        history[release['tag'].removeprefix('metalio-s31-v')]=release['files'][fixed_old]
+    for entry in catalog['releases']:
+        old=entry['version'];assert old in history and old!=version
+        assert entry['manifest']==f'metalio-anki/releases/{old}/manifest.json' and entry['bin']==fixed_old
+        archive=source/'releases'/old;old_manifest=json.loads((archive/'manifest.json').read_text())
+        assert old_manifest['version']==old and old_manifest['board']=='metalio47'
+        target=output/'metalio-anki/releases'/old;target.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(archive/'manifest.json',target/'manifest.json')
+        payload=(output/entry['bin']).read_bytes()
+        assert payload[48:80].split(b'\0')[0].decode()==old and payload[80:112].split(b'\0')[0]==b'Kiikoread_Metalio_S31'
+        for name in ('bootloader.bin','partitions.bin','ota_data_initial.bin'):
+            data=(archive/name).read_bytes();info=entry['files'][name]
+            assert len(data)==info['size'] and hashlib.sha256(data).hexdigest()==info['sha256']
+            shutil.copy2(archive/name,target/name)
+    previous=manifest.get('previous_version')
+    if previous:assert any(entry['version']==previous for entry in catalog['releases'])
+    print(f'Metalio S31 Anki: {version}, {len(app)} bytes, dedicated flasher verified SHA-256')

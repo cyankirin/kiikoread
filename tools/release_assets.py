@@ -19,7 +19,7 @@ import time
 #       upstream official Releases for assets that only exist there (e.g. historical versions).
 #       Both sources go through the same SHA-256 verification; bytes are unchanged.
 REPO_BASES = (
-    'https://github.com/cyankirin/kiikoreader-anki/releases/download/',
+    'https://github.com/cyankirin/kiikoread/releases/download/',
     'https://github.com/wegooo-cell/read-pico-reader/releases/download/',
 )
 
