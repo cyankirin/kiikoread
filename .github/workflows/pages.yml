@@ -22,7 +22,9 @@ on:
       - flash/releases/**
       - flash/versions.js
       - flash/metalio/**
+      - flash/metalio-anki/**
       - flash/metalio-s31-update.json
+      - flash/metalio-anki-s31-update.json
       - flash/metalio-installer.js
       - flash/metalio-flash-core.js
       - flash/metalio-connection.js
