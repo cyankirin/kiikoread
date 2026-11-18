@@ -25,7 +25,7 @@
     metalioButton.hidden=!(ready&&device==='metalio'&&window.MetalioInstaller);
     help.hidden=device==='pico'?!installer.hidden:!metalioButton.hidden;
   }
-  async function readJSON(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('清单暂不可用');return response.json();}
+  async function readJSON(url){const response=await fetch(url,{cache:'no-cache'});if(!response.ok)throw Error('清单暂不可用');return response.json();}
   function hideDownloads(){
     for(const id of ['bin-download','tf-package-download','usb-package-download']){const link=document.getElementById(id);link.hidden=true;link.removeAttribute('href');}
     installer.hidden=metalioButton.hidden=true;
@@ -36,14 +36,15 @@
     link.hidden=(manifest[`${kind.toLowerCase()}_package_url`]||choice[`${kind.toLowerCase()}_package_url`])!==expected;
     if(!link.hidden){link.href=expected;link.textContent=`下载 ${manifest.version.split('-').pop()} ${kind==='TF'?'TF 卡升级包':'全量包（USB）'} ZIP ↓`;}
   }
-  async function selectRelease(){
+  async function selectRelease(prefetched){
     const current=++request, model=models[device], clickedDevice=device, choice=releases.get(selector.value);
     manifestReady=false;selected=null;hideDownloads();version.textContent=updated.textContent='读取中…';updated.removeAttribute('datetime');
     document.dispatchEvent(new CustomEvent('kiikoread:release-loading'));showInstaller();
     try{
       if(!choice)throw Error('Unknown release');
       const manifestURL=new URL(choice.manifest,document.baseURI).href;
-      const manifest=await readJSON(manifestURL);
+      // 中文：最新版清单可在选设备阶段预取，命中预取结果可省一次串行往返。
+      const manifest=await (choice.manifest===model.manifest&&prefetched?prefetched:readJSON(manifestURL));
       if(current!==request)return;
       window.KiikoreadFlasher.validate(manifest,clickedDevice);
       if(choice.version&&manifest.version!==choice.version)throw Error('版本不匹配');
@@ -83,6 +84,8 @@
     releases=new Map([[model.manifest,{manifest:model.manifest}]]);
     selector.replaceChildren(Object.assign(document.createElement('option'),{value:model.manifest,textContent:'最新版本 · 读取中'}));
     version.textContent=updated.textContent='读取中…';syncControls();showInstaller();
+    // 中文：与版本目录并行预取最新版清单；若用户改选其他版本，该预取结果会被丢弃（已接 catch 防未处理拒绝）。
+    const latestManifest=readJSON(new URL(model.manifest,document.baseURI).href);latestManifest.catch(()=>{});
     try{
       const catalog=await readJSON(model.catalog);if(current!==request)return;
       if(catalog.schema!==1||!Array.isArray(catalog.releases))throw Error('Invalid catalog');
@@ -94,7 +97,7 @@
       }
       const wanted=catalog.releases.find(r=>r.version===wantedVersion||r.version.split('-').pop()===wantedVersion);if(wanted)selector.value=wanted.manifest;
     }catch(error){if(current!==request)return;hint.textContent='历史列表暂不可用，可选择当前机型最新版本。';}
-    if(current!==request)return;catalogReady=true;syncControls();await selectRelease();
+    if(current!==request)return;catalogReady=true;syncControls();await selectRelease(latestManifest);
   }
   if(location.protocol==='file:'){version.textContent=updated.textContent='请打开官网刷机页';return;}
   if(!window.isSecureContext)title.textContent='请使用 HTTPS 刷机页。';else if(!('serial' in navigator))title.textContent='请使用电脑 Chrome 或 Edge 连接串口。';

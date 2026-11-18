@@ -12,13 +12,15 @@ function sync(){const ok=window.isSecureContext&&'serial' in navigator&&snapshot
 window.addEventListener('metalio-installer-ready',sync);
 async function pick(manifestURL,expected){
   snapshot=null;sync();
-  const response=await fetch(manifestURL,{cache:'no-store'});
+  const response=await fetch(manifestURL,{cache:'no-cache'});
   if(!response.ok)throw Error(`清单下载失败（${response.status}）`);
   const manifest=await response.json();
   window.KiikoreadFlasher.validate(manifest,'metalio');
   if(expected&&manifest.version!==expected)throw Error('清单版本与所选目录条目不符');
   snapshot={device:'metalio',manifest:JSON.parse(JSON.stringify(manifest)),manifestURL,files:undefined};
   version.textContent=manifest.version;
+  // 中文：最新版选中后把下拉首项从「读取中」改为真实版本号，避免按钮已就绪却显示加载中的错觉。
+  if(new URL(manifestURL,here).href===new URL('manifest.json',here).href)selector.options[0].textContent=`最新版本 · ${manifest.version}`;
   const date=new Date(manifest.updated_at);
   if(Number.isFinite(date.getTime())){updated.dateTime=date.toISOString();updated.textContent=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date).replace(/\//g,'-');}else updated.textContent='暂未提供';
   bin.href=new URL('Metalio-S31-update-'+manifest.version+'.bin',root).href;
@@ -31,7 +33,7 @@ selector.addEventListener('change',async()=>{
   try{await pick(new URL(selector.value,here).href,expected);}catch(error){version.textContent='读取失败，请重选版本或刷新';updated.textContent='暂不可用';}
 });
 try{
-  const response=await fetch(new URL('releases.json',here),{cache:'no-store'});
+  const response=await fetch(new URL('releases.json',here),{cache:'no-cache'});
   if(response.ok){
     const catalog=await response.json();
     if(catalog.schema===1&&Array.isArray(catalog.releases))for(const release of catalog.releases){
