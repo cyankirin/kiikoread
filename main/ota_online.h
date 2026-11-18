@@ -30,7 +30,7 @@
 #define PICO_OTA_FEED_FALLBACK_URL "https://kiikoread.com/update.json"
 // 中文：Anki 版清单走本 fork 的 Pages 镜像；官方清单常量原样保留，互不影响。
 // English: The Anki manifest lives on this fork's Pages mirror; the official constants stay untouched.
-#define PICO_OTA_ANKI_FEED_URL "https://cyankirin.github.io/kiikoreader-anki/anki-update.json"
+#define PICO_OTA_ANKI_FEED_URL "https://cyankirin.github.io/kiikoread/anki-update.json"
 #endif
 
 // 中文：升级通道。官方通道完全沿用原有清单源与行为；Anki 通道只读本 fork 的清单，

@@ -36,17 +36,17 @@ int main(void) {
  assert(!pico_release_url_valid("https://wegooo-cell.github.io/read-pico-reader/../a.bin"));
  // Anki 版通道：只多一个白名单站点，扁平文件名与其余规则一律不变。
  // Anki channel: exactly one more allowlisted site; flat names and every other rule stand.
- assert(pico_release_url_valid("https://cyankirin.github.io/kiikoreader-anki/Pico-anki-0.3.3-rc104.02.bin"));
- assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoreader-anki/releases/0.3.3-rc104.02/firmware.bin"));
- assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoreader-anki/../Pico-anki.bin"));
- assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoreader-anki/Pico-anki.tar"));
+ assert(pico_release_url_valid("https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc104.02.bin"));
+ assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoread/releases/0.3.3-rc104.02/firmware.bin"));
+ assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoread/../Pico-anki.bin"));
+ assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoread/Pico-anki.tar"));
  assert(!pico_release_url_valid("https://cyankirin.github.io/other/Pico-anki.bin"));
- assert(!pico_release_url_valid("https://github.com/cyankirin/kiikoreader-anki/releases/download/x/y.bin"));
- assert(!pico_release_url_valid("http://cyankirin.github.io/kiikoreader-anki/Pico-anki.bin"));
- assert(strstr(PICO_OTA_ANKI_FEED_URL, "cyankirin.github.io/kiikoreader-anki/") != NULL);
+ assert(!pico_release_url_valid("https://github.com/cyankirin/kiikoread/releases/download/x/y.bin"));
+ assert(!pico_release_url_valid("http://cyankirin.github.io/kiikoread/Pico-anki.bin"));
+ assert(strstr(PICO_OTA_ANKI_FEED_URL, "cyankirin.github.io/kiikoread/") != NULL);
  // 站点产出的 Anki 清单形状必须能被设备解析。/ The site's Anki manifest shape parses on the device.
  char anki[2048];
- snprintf(anki, sizeof(anki), "{\"schema\":1,\"version\":\"0.3.3-rc104.02\",\"project\":\"%s\",\"board\":\"%s\",\"layout\":\"%s\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://cyankirin.github.io/kiikoreader-anki/Pico-anki-0.3.3-rc104.02.bin\",\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"notes\":\"Anki 版：导入 .apkg 复习\",\"size\":3632576}", PICO_OTA_PROJECT, PICO_OTA_BOARD, PICO_OTA_LAYOUT);
+ snprintf(anki, sizeof(anki), "{\"schema\":1,\"version\":\"0.3.3-rc104.02\",\"project\":\"%s\",\"board\":\"%s\",\"layout\":\"%s\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc104.02.bin\",\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"notes\":\"Anki 版：导入 .apkg 复习\",\"size\":3632576}", PICO_OTA_PROJECT, PICO_OTA_BOARD, PICO_OTA_LAYOUT);
  assert(pico_release_parse(anki, strlen(anki), &release) == ESP_OK);
  assert(!strcmp(release.version, "0.3.3-rc104.02") && release.size == 3632576);
  // rc 小修订让同一个 rc 内的再次发布也能被发现。/ An rc sub-revision is still a newer release.

@@ -32,7 +32,7 @@ FLASH = ROOT / "flash"
 ANKI_DIR = "kiikoread-anki"
 ANKI_LEGACY_DIR = "anki"
 ANKI_REDIRECT_TARGET = "../kiikoread-anki/"
-ANKI_CANONICAL_URL = "https://cyankirin.github.io/kiikoreader-anki/kiikoread-anki/"
+ANKI_CANONICAL_URL = "https://cyankirin.github.io/kiikoread/kiikoread-anki/"
 
 # 中文：旧地址 /anki/ 的跳转页。`meta refresh` 负责自动跳，正文里的链接负责刷新被禁用的
 #      情况，`canonical` 让搜索引擎把两台地址合成一个。三种手段都指向同一个新目录。

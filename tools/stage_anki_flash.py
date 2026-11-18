@@ -67,7 +67,7 @@ APP_DESC_MIN = 176             # 4 + 4 + 8 + 32 + 32 + 16 + 16 + 32 + 32 bytes
 #      `Pico-anki-<version>.bin` at the same root: the firmware's pico_release_url_valid()
 #      accepts allowlisted prefixes plus a flat .bin without any subdirectory, so a GitHub
 #      Release download URL (nested, 302) cannot be handed to the device.
-OTA_PREFIX = "https://cyankirin.github.io/kiikoreader-anki/"
+OTA_PREFIX = "https://cyankirin.github.io/kiikoread/"
 OTA_MANIFEST = "anki-update.json"
 OTA_IMAGE_PREFIX = "Pico-anki-"
 # 中文：与官方清单一致的最低基础版本；低于它先整机刷机。

@@ -69,7 +69,7 @@ bool pico_release_url_valid(const char *url) {
         "https://kiikoread.com/", "https://wegooo-cell.github.io/read-pico-reader/",
         // 中文：本 fork 的 Anki 版镜像站点（站点根、扁平文件名）只是多一个来源，其余规则不变。
         // English: This fork's Anki mirror (site root, flat name) is one more origin; every other rule stands.
-        "https://cyankirin.github.io/kiikoreader-anki/"
+        "https://cyankirin.github.io/kiikoread/"
     };
     if (!url || strlen(url) >= 256) return false;
     const char *name = NULL;

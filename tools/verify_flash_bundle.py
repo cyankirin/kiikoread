@@ -23,7 +23,7 @@ EXPECTED = {
 # English: Site layout for the device's Anki OTA channel. The firmware's
 #      pico_release_url_valid() accepts only allowlisted prefixes plus a flat `.bin` at the
 #      site root, so the image cannot live in a subdirectory or behind a GitHub Release.
-ANKI_OTA_PREFIX = "https://cyankirin.github.io/kiikoreader-anki/"
+ANKI_OTA_PREFIX = "https://cyankirin.github.io/kiikoread/"
 ANKI_OTA_MANIFEST = "anki-update.json"
 ANKI_OTA_BOARD = "RDP-G01-W"
 ANKI_OTA_LAYOUT = "pico-dual-4m-v1"

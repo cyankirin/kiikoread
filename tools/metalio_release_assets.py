@@ -66,7 +66,7 @@ def stage_metalio(flash: Path, output: Path) -> None:
     # English: The OTA feed download URL may live on the upstream site or the Anki fork site
     #          (both deploy roots stage the same file).
     assert feed['url'] in ('https://wegooo-cell.github.io/read-pico-reader/'+fixed,
-                           'https://cyankirin.github.io/kiikoreader-anki/'+fixed)
+                           'https://cyankirin.github.io/kiikoread/'+fixed)
     assert isinstance(feed['notes'],str) and 0<len(feed['notes'].encode())<384
     shutil.copy2(flash/'metalio-s31-update.json',output/'metalio-s31-update.json')
     # 历史版本必须来自原 Release，所有旧网址保留原字节。 / Historical URLs retain original Release bytes.

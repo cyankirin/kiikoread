@@ -74,7 +74,7 @@ globalThis.document = {
   getElementById: (id) => elements[id] ?? null,
   querySelector: (selector) => (selector === 'esp-web-install-button' ? button : null),
   createElement: (tag) => new FakeElement(tag),
-  baseURI: 'https://cyankirin.github.io/kiikoreader-anki/anki/index.html',
+  baseURI: 'https://cyankirin.github.io/kiikoread/anki/index.html',
 };
 globalThis.window = { isSecureContext: true };
 // 中文：Node 22 的 navigator 只有 getter，用 defineProperty 覆盖成最小替身。
