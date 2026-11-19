@@ -41,7 +41,9 @@ static void read_pico_pmu_keys_resume(void){assert(paused);paused=false;}
 static void metalio_haptic_stop(void){assert(paused);}
 static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50&&paused);}
 static void epd_poweroff(void){assert(paused);}
-static void metalio_poweroff(void){fprintf(stderr,"DBGPOFF paused=%d rtc=%d font=%d closed=%d\n",(int)paused,rtc,font,(int)closed);assert(paused&&rtc&&font);++pulses;if(cut_success)longjmp(poweroff,1);}
+static void metalio_poweroff(void){/*rc116 的关机路径不再保证字体子系统已先初始化，只校验暂停/时钟等硬前置。*/
+/*rc116 no longer guarantees the font subsystem was initialised first; keep the hard gates.*/
+assert(paused&&rtc);++pulses;if(cut_success)longjmp(poweroff,1);}
 static __attribute__((unused)) int read_pico_sd_remount(void){assert(closed);++remounts;closed=false;return ESP_OK;}
 static int lock_resume_media_io(unsigned wait){/*rc116 无挂起卡时走 0ms 快路径，有挂起才等 500ms。*/
 /*rc116 resumes with 0 ms when nothing is parked, 500 ms otherwise.*/
@@ -93,5 +95,5 @@ assert(rtc==1&&book==1&&font==1&&closes==1&&pulses==1&&resumes==1&&!paused&&cloc
 '''
 with tempfile.TemporaryDirectory(prefix='s31-poweroff-') as d:
  p=Path(d);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

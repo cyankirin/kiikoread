@@ -90,5 +90,5 @@ int main(int argc,char **argv){
 '''
 with tempfile.TemporaryDirectory(prefix='kiiko-cached-chapters-') as folder:
     p=Path(folder);(p/'test.c').write_text(u)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'tools/book_epub_stubs'),'-I'+str(R/'main/book'),str(p/'test.c'),'-o',str(p/'test')],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'tools/book_epub_stubs'),'-I'+str(R/'main/book'),str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test'),str(p)],check=True)

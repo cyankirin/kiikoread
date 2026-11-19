@@ -146,5 +146,5 @@ int main(void){
 with tempfile.TemporaryDirectory() as folder:
     path = Path(folder)
     (path / 'test.c').write_text(unit)
-    subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(path/'test.c'),'-o',str(path/'test')],check=True)
+    subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(path/'test.c'),'-o',str(path/'test')],check=True)
     subprocess.run([str(path/'test')],check=True)

@@ -131,5 +131,5 @@ int main(void){app_ctx_t ctx={0};
 '''
 with tempfile.TemporaryDirectory(prefix='kiiko-reading-origin-') as folder:
  c=Path(folder)/'test.c';binary=Path(folder)/'test';c.write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True)

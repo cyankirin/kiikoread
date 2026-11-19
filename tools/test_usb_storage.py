@@ -144,6 +144,6 @@ with tempfile.TemporaryDirectory() as d:
                  'ui_avatar.h','book_cover_jobs.h','book_lock_collage.h'):
         header=p/name;header.parent.mkdir(parents=True,exist_ok=True);header.write_text('#include "usb_stub.h"\n')
     (p/'test.c').write_text(UNIT)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
                     '-fno-omit-frame-pointer',f'-I{p}',f'-I{ROOT / "main/apps"}',str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test')],check=True)

@@ -65,7 +65,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='reader-footer-identity-') as temporary:
     folder=Path(temporary)
     (folder/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
         '-I'+str(root),'-I'+str(root/'main/book'),'-I'+str(root/'tools/html_text_stubs'),
         str(folder/'test.c'),'-o',str(folder/'test')],check=True)
     subprocess.run([str(folder/'test')],check=True)

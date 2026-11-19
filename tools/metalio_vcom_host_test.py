@@ -179,5 +179,5 @@ with tempfile.TemporaryDirectory() as d:
  d=Path(d)
  for name,src in [('nvs',u),('tps',t),('off',off)]:
   (d/(name+'.c')).write_text(src)
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(d/(name+'.c')),'-o',str(d/name)],check=True)
+  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(d/(name+'.c')),'-o',str(d/name)],check=True)
   subprocess.run([str(d/name)],check=True)

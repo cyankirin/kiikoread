@@ -131,7 +131,7 @@ with tempfile.TemporaryDirectory(prefix='s31-gray-transition-') as folder:
     c = Path(folder)/'test.c'
     exe = Path(folder)/'test'
     c.write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
         '-Imain','-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs',
         '-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include',
         '-Icomponents/e0470_epaper_waveform/metalio',str(c),'main/display_main_waveform.c',

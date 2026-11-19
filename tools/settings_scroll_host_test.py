@@ -133,7 +133,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory(prefix='kiikoread-settings-rollback-') as directory:
     path=Path(directory)/'settings.c';binary=path.with_suffix('');path.write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
                     '-I'+str(root/'tools/ui_gesture_stubs'),'-I'+str(root/'main/ui'),str(path),str(root/'main/ui/ui_gesture.c'),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 
@@ -176,5 +176,5 @@ int main(void){
 """
     with tempfile.TemporaryDirectory(prefix='pico-settings-decoration-') as directory:
         path=Path(directory)/'decoration.c';binary=path.with_suffix('');path.write_text(decoration)
-        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(path),'-o',str(binary)],check=True)
+        subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(path),'-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True)

@@ -158,7 +158,7 @@ int main(void){
 
 with tempfile.TemporaryDirectory(prefix='pico-main-clean-') as folder:
     d=Path(folder);(d/'lut.c').write_text(UNIT)
-    flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+    flags=['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
            '-fno-sanitize-recover=all','-Imain','-Imain/app','-Itools/shelf_waveform_host_stubs',
            '-Itools/waveform_host_stubs','-Icomponents/epdiy/include','-Icomponents/epdiy/src',
            '-Icomponents/e0470_epaper_waveform/include','-Icomponents/e0470_epaper_waveform/waveforms']
@@ -204,7 +204,7 @@ int main(void){
         main=re.sub(r'\bTICKS\b',str(ticks),main)
         (d/'band.c').write_text(prefix+main)
         exe=d/f'band-{phases}'
-        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+        subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
                         '-Itools/water_turn_stubs','-Icomponents/e0470_page_turn/include',str(d/'band.c'),
                         'boards/pico/src/components/e0470_page_turn/e0470_page_turn.c','-o',str(exe)],cwd=ROOT,check=True)
         subprocess.run([str(exe)],check=True)
@@ -255,5 +255,5 @@ int main(void){
     '''
         (d/'scope.c').write_text(scope)
         exe=d/'scope'
-        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(d/'scope.c'),'-o',str(exe)],check=True)
+        subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(d/'scope.c'),'-o',str(exe)],check=True)
         subprocess.run([str(exe)],check=True)

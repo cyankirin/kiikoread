@@ -186,5 +186,5 @@ settings=settings.replace(' puts("PASS: S31 setting namespace',' s_ai_short=APP_
 with tempfile.TemporaryDirectory() as d:
  for name,unit in [('sampler',sampler),('chooser',ui),('settings',settings),('dispatch',dispatch)]:
   p=Path(d)/name;p.with_suffix('.c').write_text(unit)
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined',str(p.with_suffix('.c')),'-o',str(p)],check=True)
+  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined',str(p.with_suffix('.c')),'-o',str(p)],check=True)
   subprocess.run([str(p)],check=True)

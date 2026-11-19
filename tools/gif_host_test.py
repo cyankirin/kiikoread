@@ -85,6 +85,6 @@ with tempfile.TemporaryDirectory(prefix='kiiko-gif-') as temp:
     source = Path(temp) / 'gif.c'
     binary = Path(temp) / 'gif'
     source.write_text(unit)
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined',
+    subprocess.run(['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined',
                     '-fno-omit-frame-pointer', str(source), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

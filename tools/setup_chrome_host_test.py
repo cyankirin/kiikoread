@@ -73,4 +73,4 @@ int main(void){app_ctx_t c={.fb=canvas};memset(canvas,255,sizeof(canvas));
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(u);exe=p/'test'
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)

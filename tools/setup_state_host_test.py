@@ -63,5 +63,5 @@ int main(void){
  for localized in [False,True]:
   exe=p/('test-en' if localized else 'test')
   flags=['-DKIIKO_UI_LOCALIZATION=1','-DKIIKO_LOCALE_TEST=1','-I'+str(root/'components/kiiko_locale/include'),str(root/'components/kiiko_locale/ui_locale.c')] if localized else []
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(p),'-I'+str(root/'main'),str(p/'test.c'),str(root/'main/setup_state.c'),*flags,'-o',str(exe)],check=True)
+  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(p),'-I'+str(root/'main'),str(p/'test.c'),str(root/'main/setup_state.c'),*flags,'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)

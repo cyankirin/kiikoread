@@ -77,5 +77,5 @@ with tempfile.TemporaryDirectory() as folder:
  for target in [0,1]:
   flags=['-DCONFIG_IDF_TARGET_ESP32S31=1'] if target else []
   # The vendor branch tests use defined(), so leave the macro absent on the legacy target.
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'components/epdiy/src'),*flags,str(p/'test.c'),'-o',str(p/'test')],check=True)
+  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'components/epdiy/src'),*flags,str(p/'test.c'),'-o',str(p/'test')],check=True)
   subprocess.run([str(p/'test')],check=True)

@@ -117,7 +117,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='s31-main-clean-') as folder:
     d=Path(folder)
     (d/'test.c').write_text(UNIT)
-    flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g',
+    flags=['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-g',
            '-fsanitize=address,undefined','-fno-sanitize-recover=all','-DKIIKO_BOARD_METALIO47=1',
            '-DKIIKO_S31_DU14=1','-DKIIKO_S31_SHELF37=1','-Imain',
            '-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs',
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix='s31-main-clean-') as folder:
         '(void)snprintf(b,sizeof(b),fmt,__VA_ARGS__); } while(0)\n')
     (d/'esp_heap_caps.h').write_text((ROOT/'tools/water_turn_stubs/esp_heap_caps.h').read_text()+
         '\nstatic inline void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}\n')
-    command=['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unknown-attributes',
+    command=['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unknown-attributes',
         '-g','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=0',
         '-DKIIKO_TEST_MAIN_SWITCH_ERASE=1','-DKIIKO_TEST_ROOT_BACKGROUND=1','-DKIIKO_S31_MAIN_CLEAN=1',
         '-I'+str(d),'-Icomponents/epdiy/src','-Icomponents/epdiy/include',
@@ -209,5 +209,5 @@ int main(void){
 }
 '''
     (d/'scope.c').write_text(scope)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(d/'scope.c'),'-o',str(d/'scope')],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(d/'scope.c'),'-o',str(d/'scope')],check=True)
     subprocess.run([str(d/'scope')],check=True)

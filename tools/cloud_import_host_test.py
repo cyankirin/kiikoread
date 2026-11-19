@@ -304,10 +304,10 @@ with tempfile.TemporaryDirectory(prefix='kiiko-cloud-test-') as t:
     for i,path in enumerate([ROOT/'main/book/book_cover.c',ROOT/'main/book/book_image_header.c',jpeg_dir/'tjpgd/tjpgd.c',ROOT/'components/jpegdec/src/JPEGDEC.cpp',ROOT/'components/jpegdec/src/jpegdec_shim.cpp']):
         cpp=path.suffix=='.cpp';obj=work/f'image{i}.o';extra=['-fno-sanitize=alignment,shift'] if path.name=='JPEGDEC.cpp' else []
         if path.name=='book_cover.c':extra+=['-include',str(ROOT/'tools/book_epub_stubs/esp_log.h')]
-        subprocess.run(['c++' if cpp else 'cc','-std=c++17' if cpp else '-std=c11',*flags,*extra,*includes,'-c',str(path),'-o',str(obj)],check=True);image_objects.append(str(obj))
+        subprocess.run(['c++' if cpp else 'cc','-std=c++17' if cpp else '-std=c11','-D_DEFAULT_SOURCE',*flags,*extra,*includes,'-c',str(path),'-o',str(obj)],check=True);image_objects.append(str(obj))
     # 云服务自身仍用严格警告；其他源文件独立编译，使用其现有stub。/ Keep strict warnings for the service, compiling codec sources separately.
     obj=work/'cloud.o'
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-format-truncation','-Wno-deprecated-declarations','-DKIIKO_BOARD_METALIO47='+str(int(args.board=='metalio47')),*flags,'-pthread','-I'+str(cjson),'-I'+str(ROOT/'tools/zip_host_stubs'),'-I'+str(ROOT/'main/book'),'-c',str(unit),'-o',str(obj)],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-format-truncation','-Wno-deprecated-declarations','-DKIIKO_BOARD_METALIO47='+str(int(args.board=='metalio47')),*flags,'-pthread','-I'+str(cjson),'-I'+str(ROOT/'tools/zip_host_stubs'),'-I'+str(ROOT/'main/book'),'-c',str(unit),'-o',str(obj)],check=True)
     gc='-Wl,-dead_strip' if sys.platform=='darwin' else '-Wl,--gc-sections'
     subprocess.run(['c++',*flags,gc,'-pthread','-I'+str(cjson),'-I'+str(ROOT/'tools/zip_host_stubs'),'-I'+str(ROOT/'main/book'),str(obj),*image_objects,'-x','c',str(cjson/'cJSON.c'),str(ROOT/'main/book/zip_reader.c'),'-x','none',*png_link,'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True,timeout=40)

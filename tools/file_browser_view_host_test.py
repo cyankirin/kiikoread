@@ -97,7 +97,7 @@ int main(int argc,char**argv){for(int i=0;i<30;++i){snprintf(entries[i].path,288
 '''
 with tempfile.TemporaryDirectory(prefix='files-view-') as d:
  w=Path(d);(w/'test.c').write_text(u);(w/'epdiy.h').write_text('#pragma once\ntypedef struct{int x,y,width,height;}EpdRect;\n')
- exe=w/'test';subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined','-I'+str(w),'-I'+str(R/'main/assets'),'-I'+str(R/'main/ui'),'-I'+str(R/'components/read_pico_search/include'),str(w/'test.c'),str(R/'components/read_pico_search/read_pico_search.c'),'-o',str(exe)],check=True)
+ exe=w/'test';subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined','-I'+str(w),'-I'+str(R/'main/assets'),'-I'+str(R/'main/ui'),'-I'+str(R/'components/read_pico_search/include'),str(w/'test.c'),str(R/'components/read_pico_search/read_pico_search.c'),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
  if len(sys.argv)>1:
   out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=True)

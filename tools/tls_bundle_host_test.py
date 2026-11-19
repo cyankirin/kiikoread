@@ -32,7 +32,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as folder:
  root=Path(folder);src=root/'test.c';src.write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(src),'-o',str(root/'test')],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(src),'-o',str(root/'test')],check=True)
  subprocess.run([str(root/'test')],check=True)
  p=root/'components/mbedtls/esp_crt_bundle/esp_crt_bundle.c';p.parent.mkdir(parents=True)
  p.write_text('int esp_crt_verify_callback(void) {\n    const mbedtls_x509_crt* const child = crt;\n    uint32_t flags_filtered = *flags & ~(MBEDTLS_X509_BADCERT_BAD_MD | MBEDTLS_X509_BADCERT_EXPIRED | MBEDTLS_X509_BADCERT_FUTURE);\n}\n')

@@ -81,4 +81,4 @@ int main(void){app_ctx_t c;
 '''
 with tempfile.TemporaryDirectory() as folder:
  p=Path(folder);(p/'test.c').write_text(u);exe=p/'test'
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)

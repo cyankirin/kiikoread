@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='reader-gl37-') as temporary:
     folder = Path(temporary)
     test = folder / 'test.c'; test.write_text(unit)
     executable = folder / 'test'
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g',
+    subprocess.run(['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-g',
         '-fsanitize=address,undefined', '-DKIIKO_BOARD_METALIO47=1', '-Imain',
         '-Itools/waveform_host_stubs', '-Icomponents/epdiy/include', '-Icomponents/epdiy/src',
         '-Icomponents/e0470_epaper_waveform/include', '-Icomponents/e0470_epaper_waveform/metalio',

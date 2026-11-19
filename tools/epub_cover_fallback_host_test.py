@@ -20,7 +20,7 @@ int main(int argc,char **argv){assert(argc==4);uint8_t *p=NULL;size_t n=0;bool p
 '''
 with tempfile.TemporaryDirectory(prefix='epub-cover-') as d:
  w=Path(d);(w/'test.c').write_text(unit);exe=w/'test'
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'tools/book_epub_stubs'),'-I'+str(R/'tools/zip_host_stubs'),'-I'+str(R/'main/book'),str(w/'test.c')]+[str(R/'main/book'/p) for p in ['book_epub.c','zip_reader.c','html_text.c','book_index_cache.c','book_image_header.c']]+['-lz','-o',str(exe)],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'tools/book_epub_stubs'),'-I'+str(R/'tools/zip_host_stubs'),'-I'+str(R/'main/book'),str(w/'test.c')]+[str(R/'main/book'/p) for p in ['book_epub.c','zip_reader.c','html_text.c','book_index_cache.c','book_image_header.c']]+['-lz','-o',str(exe)],check=True)
  def book(name,items,meta='',broken=False):
   p=w/(name+'.epub')
   with zipfile.ZipFile(p,'w',zipfile.ZIP_DEFLATED) as z:

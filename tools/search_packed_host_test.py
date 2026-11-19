@@ -34,7 +34,7 @@ int main(void) {
 '''
 with tempfile.TemporaryDirectory(prefix='kiiko-search-packed-') as directory:
     work=Path(directory);(work/'test.c').write_text(unit)
-    common=['cc','-std=c11','-O2','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    common=['cc','-std=c11','-D_DEFAULT_SOURCE','-O2','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
             '-DKIIKO_BOARD_METALIO47='+str(metalio),'-I'+str(folder/'include')]
     subprocess.run(common+['-DPRODUCTION_SOURCE="'+str(folder/'read_pico_search.c')+'"',str(work/'test.c'),'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test')],check=True)

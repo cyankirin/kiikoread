@@ -36,7 +36,7 @@ def run(name, source, options=()):
         path = Path(directory) / 'test.c'
         path.write_text(source)
         binary = path.with_suffix('')
-        subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function',
+        subprocess.run(['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function',
                         '-fsanitize=address,undefined', '-g', *options, str(path), '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
     print('PASS: ' + name, flush=True)

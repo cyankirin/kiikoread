@@ -216,6 +216,6 @@ int main(void){
     c=tmp/'test.c'
     binary=tmp/'test'
     c.write_text(unit)
-    subprocess.run(['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-pthread',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-O1','-g','-Wall','-Wextra','-Werror','-pthread',
                     '-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True,timeout=10)

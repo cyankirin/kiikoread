@@ -127,7 +127,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
     p=Path(d);(p/'test.c').write_text(unit)
-    base=[CC,'-std=c11','-Wall','-Wextra','-Werror','-g']
+    base=[CC,'-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g']
     includes=['-I'+str(root/'components/read_pico_pmu/include')]
     try:
         subprocess.run(base+['-fsanitize=address,undefined']+includes+[str(p/'test.c'),str(root/'components/read_pico_pmu/metalio_soc_filter.c'),'-o',str(p/'test')],check=True,capture_output=True)

@@ -40,5 +40,5 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  p=Path(tmp);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'tools/water_turn_stubs'),'-I'+str(R/'components/e0470_page_turn/include'),str(p/'test.c'),str(R/'components/e0470_page_turn/e0470_page_turn.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'tools/water_turn_stubs'),'-I'+str(R/'components/e0470_page_turn/include'),str(p/'test.c'),str(R/'components/e0470_page_turn/e0470_page_turn.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

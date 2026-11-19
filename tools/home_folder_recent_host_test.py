@@ -83,7 +83,7 @@ def main():
         unit+=UNIT[UNIT.index('static void reset('):]
         with tempfile.TemporaryDirectory(prefix='kiiko-home-folder-')as tmp:
             c=Path(tmp)/'test.c';exe=Path(tmp)/'test';c.write_text(unit)
-            subprocess.run(['cc','-std=c11','-O1','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True)
+            subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-O1','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True)
             print(board,flush=True);subprocess.run([str(exe)],check=True)
 
 if __name__=='__main__':main()

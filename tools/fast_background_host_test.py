@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory(prefix='kiiko-fast-root-') as d:
  includes=['-Imain/app','-Imain','-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs','-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include']
  files=['main/display_main_waveform.c','components/e0470_epaper_waveform/e0470_epaper_waveform.c','components/e0470_epaper_waveform/e0470_waveform_trim.c']
  includes+=['-Icomponents/e0470_epaper_waveform/'+('waveforms' if pico else 'metalio')]
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47='+str(int(not pico)),'-DTEST_PICO='+str(int(pico)),'-DKIIKO_PICO_MAIN_CLEAN=0','-DKIIKO_S31_MAIN_CLEAN=0','-DKIIKO_S31_DU14=0']+includes+[str(p/'lut.c')]+files+['-o',str(p/'lut')],cwd=R,check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47='+str(int(not pico)),'-DTEST_PICO='+str(int(pico)),'-DKIIKO_PICO_MAIN_CLEAN=0','-DKIIKO_S31_MAIN_CLEAN=0','-DKIIKO_S31_DU14=0']+includes+[str(p/'lut.c')]+files+['-o',str(p/'lut')],cwd=R,check=True)
  subprocess.run([str(p/'lut')],check=True)
  # Execute each actual presenter wrapper: permission is restricted to changed root identities in Fast mode.
  scope=r"""
@@ -105,5 +105,5 @@ int main(void){app_desc_t pages[5];for(int i=0;i<5;++i)pages[i]=(app_desc_t){.in
  puts("PASS: actual presenter grants fast background only for16root pairs inFast;initial,same,children,reader,full,area and other modes excluded;scopes restored");}
 """
  (p/'scope.c').write_text(scope)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'scope.c'),'-o',str(p/'scope')],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'scope.c'),'-o',str(p/'scope')],check=True)
  subprocess.run([str(p/'scope')],check=True)

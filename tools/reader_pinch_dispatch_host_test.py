@@ -57,5 +57,5 @@ if 'ai_owned' not in block:
     unit=unit.replace('static bool ai_owned;\n','').replace(' ai_owned=true;pair();assert(!pinching);ai_owned=false;\n','')
 with tempfile.TemporaryDirectory() as tmp:
     p=Path(tmp);(p/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test')],check=True)

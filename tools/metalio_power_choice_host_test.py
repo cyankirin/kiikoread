@@ -75,6 +75,6 @@ int main(void){
 with tempfile.TemporaryDirectory() as folder:
     path = Path(folder)
     (path / 'test.c').write_text(unit)
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
+    subprocess.run(['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
                     str(path / 'test.c'), '-o', str(path / 'test')], check=True)
     subprocess.run([str(path / 'test')], check=True)

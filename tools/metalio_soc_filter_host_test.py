@@ -73,7 +73,7 @@ int main(){
 with tempfile.TemporaryDirectory(prefix='s31-soc-') as folder:
  work=Path(folder);(work/'unit.c').write_text(UNIT);src=ROOT/'components/read_pico_pmu/metalio_soc_filter.c';inc=ROOT/'components/read_pico_pmu/include'
  flags=['-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined','-g','-I'+str(inc)]
- subprocess.run(['cc','-std=c11',*flags,str(src),str(work/'unit.c'),'-lm','-o',str(work/'unit')],check=True);subprocess.run([str(work/'unit')],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE',*flags,str(src),str(work/'unit.c'),'-lm','-o',str(work/'unit')],check=True);subprocess.run([str(work/'unit')],check=True)
  if args.vendor:
   vendor=args.vendor
   for name,blob in [('bq27220_gauge.h','b069caebd1e134182ec07cdc008d22ef3b631425'),('bq27220_gauge.cc','2809c990a9084cf1963fd39e2c5693cc8bd2c33f')]:
@@ -84,5 +84,5 @@ with tempfile.TemporaryDirectory(prefix='s31-soc-') as folder:
   (work/'esp_timer.h').write_text('#pragma once\n#include <cstdint>\nint64_t esp_timer_get_time();\n')
   (work/'freertos').mkdir();(work/'freertos/FreeRTOS.h').write_text('#pragma once\n#define pdMS_TO_TICKS(ms) (ms)\n');(work/'freertos/task.h').write_text('#pragma once\nvoid vTaskDelay(int);\n')
   # Relative include resolves its adjacent vendor hardware header only if one is present; the pinned snapshot contains gauge files only.
-  subprocess.run(['cc','-std=c11',*flags,'-c',str(src),'-o',str(work/'filter.o')],check=True)
+  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE',*flags,'-c',str(src),'-o',str(work/'filter.o')],check=True)
   subprocess.run(['c++','-std=c++17',*flags,'-I'+str(work),'-I'+str(vendor),str(vendor/'bq27220_gauge.cc'),str(work/'oracle.cc'),str(work/'filter.o'),'-o',str(work/'oracle')],check=True);subprocess.run([str(work/'oracle')],check=True)

@@ -46,6 +46,6 @@ int main(void){w=1216;h=684;assert(canvas_matches_panel());w=684;h=1216;assert(c
 '''
 with tempfile.TemporaryDirectory() as folder:
  p=Path(folder);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
 print('PASS: S31/Pico identical PIF4 and native face;7668 characters/all common6500; all6030 legacy UI glyph pixels/metrics unchanged; exact advances/bearings shared')

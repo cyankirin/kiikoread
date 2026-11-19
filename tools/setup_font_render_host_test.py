@@ -15,4 +15,4 @@ int main(int argc,char**argv){assert(argc==2);FILE*f=fopen(argv[1],"rb");assert(
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(unit);exe=p/'test'
- subprocess.run(['cc','-std=c11','-O1','-fsanitize=address,undefined','-I'+str(root/'main/font'),str(p/'test.c'),'-lm','-o',str(exe)],check=True);subprocess.run([str(exe),str(font)],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-O1','-fsanitize=address,undefined','-I'+str(root/'main/font'),str(p/'test.c'),'-lm','-o',str(exe)],check=True);subprocess.run([str(exe),str(font)],check=True)

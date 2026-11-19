@@ -69,7 +69,7 @@ int main(void) {
 '''
 with tempfile.TemporaryDirectory() as folder:
     work=Path(folder);(work/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined','-I'+str(ROOT/'main/book'),str(work/'test.c'),'-o',str(work/'test')],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined','-I'+str(ROOT/'main/book'),str(work/'test.c'),'-o',str(work/'test')],check=True)
     output=subprocess.run([str(work/'test')],input='\n'.join(words)+'\n',text=True,capture_output=True,check=True).stdout.splitlines()
     assert len(output)==len(words)
     for word, line in zip(words, output):

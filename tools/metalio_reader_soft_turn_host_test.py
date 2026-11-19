@@ -132,7 +132,7 @@ with tempfile.TemporaryDirectory(prefix='s31-reader-profiles-') as temporary:
     headers = (view / 'components/e0470_epaper_waveform/include/e0470_epaper_waveform.h').read_text()
     variants = (0, 1) if 'e0470_du14_waveform' in headers else (0,)
     linker = '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections'
-    flags = ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined',
+    flags = ['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined',
              '-ffunction-sections', '-fdata-sections', linker, '-DKIIKO_S31_FAST_READER_PANELS=0',
              '-Imain', '-Itools/shelf_waveform_host_stubs', '-Itools/waveform_host_stubs',
              '-Icomponents/epdiy/include', '-Icomponents/epdiy/src',

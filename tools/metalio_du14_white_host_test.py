@@ -127,7 +127,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory(prefix='s31-du14-white-') as folder:
     t=Path(folder);(t/'test.c').write_text(unit);(t/'epd_internals.h').write_text('#include "epd_waveform.h"\n')
-    flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all',
+    flags=['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all',
         '-DKIIKO_BOARD_METALIO47=1','-I'+str(t),'-Imain','-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs',
         '-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include','-Icomponents/e0470_epaper_waveform/metalio']
     files=[str(t/'test.c'),'boards/metalio47/src/main/display_main_waveform.c','boards/metalio47/src/main/display_reader_waveform.c','boards/metalio47/src/components/e0470_epaper_waveform/e0470_epaper_waveform.c','components/e0470_epaper_waveform/e0470_waveform_trim.c']

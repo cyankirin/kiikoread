@@ -125,7 +125,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory(prefix='cloud-ui-') as t:
     c=Path(t)/'ui.c';c.write_text(u);exe=Path(t)/'ui'
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
 # 抽出真实 IMPORT 分支测试五入口，其他书架操作继续由 book_ui_host_test 覆盖。
 # Exercise the real IMPORT branch; book_ui_host_test covers other shelf actions.
 for rel in ['main/apps/app_book.c','boards/pico/src/main/apps/app_book.c']:
@@ -154,7 +154,7 @@ int main(void){app_ctx_t ctx={0};for(int i=0;i<5;i++){EpdRect r=import_rect(i);a
 '''
     assert '阅星瞳APP导入' in function('draw_import',path)
     with tempfile.TemporaryDirectory(prefix='import-entry-') as t:
-        c=Path(t)/'test.c';c.write_text(code);exe=Path(t)/'test';subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
+        c=Path(t)/'test.c';c.write_text(code);exe=Path(t)/'test';subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
 
 # 执行两板文件首页真实命中分支，前三项不能被第四项劫持。
 # Run both production file-hub branches; the fourth route never hijacks the first three.
@@ -195,4 +195,4 @@ int main(void){
     assert '"U 盘模式","阅星瞳APP导入"' in source
     with tempfile.TemporaryDirectory(prefix='file-cloud-entry-') as t:
         c=Path(t)/'test.c';c.write_text(code);exe=Path(t)/'test'
-        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
+        subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)

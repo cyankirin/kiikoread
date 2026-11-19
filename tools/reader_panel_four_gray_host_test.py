@@ -113,7 +113,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='reader-four-gray-') as temporary:
     folder=Path(temporary);test=folder/'test.c';test.write_text(unit)
     (folder/'esp_log.h').write_text('#define ESP_LOGI(...) ((void)0)\n')
-    flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+    flags=['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
            '-DKIIKO_S31_TEXT_RIPPLE=1','-I'+str(folder),'-Imain','-Itools/waveform_host_stubs',
            '-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include',
            '-Icomponents/e0470_epaper_waveform/metalio']

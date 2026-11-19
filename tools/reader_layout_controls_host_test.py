@@ -76,5 +76,5 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d)/'test.c';p.write_text(u);out=p.with_suffix('')
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(p),'-o',str(out)],check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(p),'-o',str(out)],check=True)
  subprocess.run([str(out)],check=True)

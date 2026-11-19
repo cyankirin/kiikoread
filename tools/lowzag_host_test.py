@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix='kiiko-lowzag-host-') as directory:
     c = work / 'test.c'
     binary = work / 'test'
     c.write_text(unit)
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g',
+    subprocess.run(['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-g',
                     '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
                     '-I' + str(component / 'include'), str(c), str(component / 'src/lowzag.c'),
                     '-o', str(binary)], check=True)

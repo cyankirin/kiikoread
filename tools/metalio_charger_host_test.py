@@ -3,7 +3,7 @@ from pathlib import Path
 import os, subprocess, tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = [os.environ.get('CC', 'cc'), '-std=c11', '-Wall', '-Wextra', '-Werror', '-g']
+BASE = [os.environ.get('CC', 'cc'), '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-g']
 
 STUB_HEADERS = {
     'esp_err.h': r'''#pragma once

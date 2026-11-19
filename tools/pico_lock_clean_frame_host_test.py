@@ -65,5 +65,5 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory(prefix='pico-lock-white-') as tmp:
     c=Path(tmp)/'test.c';c.write_text(unit);exe=Path(tmp)/'test'
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

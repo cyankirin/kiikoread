@@ -230,6 +230,6 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='text-ripple-routes-') as folder:
  for name,code in [('eligibility',turn),('outlet',outlet)]:
   c=Path(folder)/(name+'.c');binary=c.with_suffix('');c.write_text(code)
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined',
+  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined',
                   '-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=1',str(c),'-o',str(binary)],check=True)
   subprocess.run([str(binary)],check=True)

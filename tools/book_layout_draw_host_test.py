@@ -89,7 +89,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='book-image-record-') as directory:
     work=Path(directory)
     (work/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
                     '-I'+str(root/'tools/book_layout_stubs'),'-I'+str(root/'tools/book_source_host_stubs'),'-I'+str(root/'main/book'),
                     str(work/'test.c'),'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test')],check=True)

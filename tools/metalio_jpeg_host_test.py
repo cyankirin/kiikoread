@@ -119,11 +119,11 @@ int main(int argc,char**argv){if(argc!=2)return 3;
  fixture(argv[1],"progressive.jpg",8,8,4,1);fixture(argv[1],"large-progressive.jpg",1920,1080,5,1);return 0;}
 """
     (d/'generate.c').write_text(generator)
-    subprocess.run(['cc','-std=c11','-I'+str(a.jpeg_source),'-I'+str(a.jpeg_build),str(d/'generate.c'),str(a.jpeg_build/'libjpeg.a'),'-o',str(d/'generate')],check=True)
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-I'+str(a.jpeg_source),'-I'+str(a.jpeg_build),str(d/'generate.c'),str(a.jpeg_build/'libjpeg.a'),'-o',str(d/'generate')],check=True)
     subprocess.run([str(d/'generate'),str(d)],check=True)
     raw=(d/'padded.jpg').read_bytes();(d/'exif.jpg').write_bytes(raw[:2]+b'\xff\xe1\x13\x8a'+b'X'*5000+raw[2:])
     (d/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
         '-I'+str(R/'tools/metalio_jpeg_stubs'),'-I'+str(R/'main/book'),'-I'+str(a.jpeg_source),'-I'+str(a.jpeg_build),
         str(d/'test.c'),str(a.jpeg_build/'libjpeg.a'),'-o',str(d/'test')],check=True)
     subprocess.run([str(d/'test'),*[str(d/n) for n in ('padded.jpg','red.jpg','blue.jpg','gray.jpg','progressive.jpg','exif.jpg','large-progressive.jpg')]],check=True)

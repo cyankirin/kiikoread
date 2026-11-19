@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory() as temp:
         c = Path(temp) / 'return.c'
         executable = c.with_suffix('')
         c.write_text(code)
-        subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+        subprocess.run(['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror',
                         f'-DKIIKO_BOARD_METALIO47={int(s31)}', '-fsanitize=address,undefined',
                         str(c), '-o', str(executable)], check=True)
         subprocess.run([str(executable)], check=True)

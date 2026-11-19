@@ -26,4 +26,4 @@ int main(void){app_desc_t guide={true},child={true},home={false};
  puts("PASS: real setup guard blocks menu/return/home while Pending, retains guide children, permits only persisted completion, and leaves normal pages unchanged");}
 '''
 with tempfile.TemporaryDirectory() as d:
- p=Path(d);(p/'test.c').write_text(u);subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-logical-op-parentheses','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True);subprocess.run([str(p/'test')],check=True)
+ p=Path(d);(p/'test.c').write_text(u);subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-logical-op-parentheses','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True);subprocess.run([str(p/'test')],check=True)

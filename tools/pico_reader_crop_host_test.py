@@ -119,7 +119,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='pico-reader-crop-') as temp:
     folder=Path(temp);(folder/'esp_attr.h').write_text('#define IRAM_ATTR\n')
     c=folder/'test.c';c.write_text(unit);exe=folder/'test'
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unknown-attributes',
+    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unknown-attributes',
                     '-Wno-pointer-to-int-cast','-fsanitize=address,undefined','-I'+temp,str(c),
                     str(ROOT/'components/epdiy/src/riscv_pixels.c'),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

@@ -58,4 +58,4 @@ int main(void){
  puts("PASS: stable body with disjoint visible crop/header/footer, immediate centre mode tap, retained image side zoom, 7 file rows/4 actions, 5 shelf rows and separated pager/actions");
 }
 ''')
- exe=p/'test';subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(p),'-I'+str(root/'main'),str(p/'test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)
+ exe=p/'test';subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(p),'-I'+str(root/'main'),str(p/'test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True)

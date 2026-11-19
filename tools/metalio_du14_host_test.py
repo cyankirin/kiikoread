@@ -72,7 +72,7 @@ int main(int argc,char **argv){
 with tempfile.TemporaryDirectory(prefix='kiiko-s31-du14-') as folder:
     t=Path(folder);(t/'test.c').write_text(unit)
     (t/'epd_internals.h').write_text('#include "epd_waveform.h"\n')
-    flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all',
+    flags=['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all',
            '-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_SHELF37=1','-DKIIKO_S31_READER_PANEL37=1','-DKIIKO_S31_FAST_READER_PANELS=1',
            '-I'+str(t),'-Imain','-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs',
            '-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include',

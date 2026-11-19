@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix='s31-ripple-crop-') as temporary:
     folder=Path(temporary);source=folder/'test.c';source.write_text(unit)
     for phases in (37,33,29):
         binary=folder/('test-'+str(phases))
-        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable',
+        subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable',
             '-fsanitize=address,undefined','-DTEST_PHASES='+str(phases),'-I'+str(root/'tools/water_turn_stubs'),
             '-I'+str(root/'components/e0470_page_turn/include'),str(source),'-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True)

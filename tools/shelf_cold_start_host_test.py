@@ -81,5 +81,5 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='kiiko-cold-start-') as d:
     p=Path(d)
     (p/'test.c').write_text(u)
-    subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'main/book'),str(p/'test.c'),'-o',str(p/'test')],check=True)
+    subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(R/'main/book'),str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test')],check=True)
