@@ -183,6 +183,7 @@ static bool s_font_recovery_save_failed;
 static void ui_text_set_system_scale(bool enabled){(void)enabled;}
 static EpdRect ui_inset_rect(EpdRect r,int n){r.x+=n;r.y+=n;r.width-=2*n;r.height-=2*n;return r;}
 """
+geometry+=function('ui_text_uses_builtin',ROOT/'main/ui/ui_kit.c')+'\n'
 geometry+=function('ui_text_box',ROOT/'main/ui/ui_kit.c').replace('void ui_text_box(', 'static void actual_text_box(')+'\n'
 geometry+=function('reader_font_recovery_button',SRC)+'\n'+function('draw_font_recovery',SRC)+'\n'
 geometry+=r"""
