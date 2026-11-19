@@ -1078,7 +1078,8 @@ int main(void) {
     test_hold_action=APP_READER_KEY_HOME;test_nav_target=-1;
     /*rc116 起非阅读页的长按 HOME 改为发起导航请求，不再自行重画。*/
     /*Since rc116 a HOME long-press off the reader issues a nav request instead of repainting.*/
-    assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_NONE && test_nav_target==0 && s_view==SHELF);
+    {app_redraw_t r=on_key_long(&ctx,UI_KEY_2);fprintf(stderr,"DBGKEY r=%d nav=%d view=%d\n",(int)r,test_nav_target,(int)s_view);
+     assert(r==APP_REDRAW_NONE && test_nav_target==0 && s_view==SHELF);}
     s_view=READING;s_reader_return_home=true;
     assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_NONE && test_nav_target==0);
     test_hold_action=APP_READER_KEY_REFRESH;
