@@ -20,7 +20,7 @@ typedef struct{bool mounted;}read_pico_sd_info_t;
 #define ESP_ERR_NOT_FINISHED -3
 #define pdMS_TO_TICKS(x) (x)
 #define ESP_LOGW(...) ((void)0)
-static bool s_lock_io_pending,s_lock_io_no_media,card,closed,paused,key_pending,cut_success,usb;
+static bool s_lock_io_pending,s_lock_io_no_media,s_lock_sd_parked,card,closed,paused,key_pending,cut_success,usb;
 static bool metalio_usb_blocks_sleep(void){return usb;}
 static bool metalio_confirm_power_key(void){return key_pending;}
 static int rtc_error,failure;

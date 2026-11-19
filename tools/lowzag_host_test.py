@@ -33,7 +33,7 @@ static size_t heap_caps_get_free_size(unsigned caps){assert(caps==3);return budg
 static void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3);if(++allocations==fail_at)return NULL;return malloc(n);}
 static void heap_caps_free(void *p){free(p);}
 '''
-for name in ('cover_alloc', 'luminance', 'scale_axis', 'scale_map', 'scale_next', 'bilinear4', 'book_cover_crop'):
+for name in ('image_work_budget', 'cover_alloc', 'luminance', 'scale_axis', 'scale_map', 'scale_next', 'bilinear4', 'book_cover_crop'):
     unit += function(name, source) + '\n'
 start = text.index('typedef struct { const uint8_t *data; size_t size, pos; } lowzag_mem_input_t;')
 end = text.index('#endif', start)
