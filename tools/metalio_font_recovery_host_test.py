@@ -18,6 +18,15 @@ unit=r'''
 #define TTF_FONT_PATH_MAX 256
 #define TTF_FONT_BUILTIN "builtin"
 #define ESP_LOGW(...) ((void)0)
+/*rc116 的字体上下文新增用户选择标记与缓存清理调用；宿主按需补齐。*/
+/*rc116 adds a user-choice flag and a cache clear to the font context; restate them on host.*/
+#define ESP_LOGE(...) ((void)0)
+#ifndef ESP_ERR_NO_MEM
+#define ESP_ERR_NO_MEM 0x101
+#endif
+static bool s_user_choice;
+static const char *esp_err_to_name(int err){(void)err;return "err";}
+static size_t ttf_font_cache_clear_all(void){return 0;}
 typedef int esp_err_t;
 enum{ESP_OK=0,ESP_FAIL=-1,ESP_ERR_INVALID_RESPONSE=0x108};
 typedef struct{char path[256];}ttf_font_item_t;
