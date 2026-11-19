@@ -38,7 +38,7 @@ static void metalio_haptic_stop(void){assert(paused&&closed);}
 static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50&&closed&&paused);}
 static void epd_poweroff(void){assert(closed&&paused);}
 static void metalio_poweroff(void){assert(closed&&paused&&rtc&&font);++pulses;if(cut_success)longjmp(poweroff,1);}
-static int read_pico_sd_remount(void){assert(closed);++remounts;closed=false;return ESP_OK;}
+static __attribute__((unused)) int read_pico_sd_remount(void){assert(closed);++remounts;closed=false;return ESP_OK;}
 static int lock_resume_media_io(unsigned wait){assert(wait==500&&!closed);++resumes;s_lock_io_pending=false;return ESP_OK;}
 static void metalio_haptic_resume(void){++haptics;}
 // 充电监控的挂起/恢复由充电驱动自己验证；这里只要求关机事务前后成对调用。
