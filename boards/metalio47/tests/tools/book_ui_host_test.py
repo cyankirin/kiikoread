@@ -95,7 +95,7 @@ static EpdRect ui_bar_rect(int i,int count){int width=(508-(count-1)*12)/count;r
 enum {UI_PAGER_NONE=-1,UI_PAGER_FIRST,UI_PAGER_PREVIOUS,UI_PAGER_NEXT,UI_PAGER_LAST};
 static EpdRect ui_pager_rect(int i){return (EpdRect){40+i*140,1004,100,70};}
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
-typedef struct {char name[256],author[128],path[288];uint32_t size;uint16_t chapter,chapters;bool chapters_checked, is_flash,has_progress;uint8_t pct;uint32_t recent;uint64_t added;bool selected,removed,search_match,favorite;} shelf_entry_t;
+typedef struct {char name[256],author[128],path[288];uint32_t size;int64_t modified;bool cover_identity_known;uint16_t chapter,chapters;bool chapters_checked, is_flash,has_progress;uint8_t pct;uint32_t recent;uint64_t added;bool selected,removed,search_match,favorite;} shelf_entry_t;
 #define APP_BOOK_TRACK_MIN -4
 #define APP_BOOK_TRACK_COUNT 21
 #define BOOK_ROWS 13
@@ -259,7 +259,7 @@ static void invalidate_covers(void){}
 static shelf_entry_t s_managed;
 static bool s_delete_confirm,s_file_removed,s_clear_confirm;
 static char s_manage_message[128];
-typedef enum {SHELF,SETTINGS,READING,TOC,MANAGE,BULK,IMPORT,SEARCH,EDIT} book_view_t;
+typedef enum {SHELF,SETTINGS,READING,TOC,MANAGE,BULK,IMPORT,SEARCH,EDIT,COVER_LOOKUP} book_view_t;
 static book_view_t s_view,s_search_parent;
 static bool test_draw_locked,test_system_face=true;
 static void lock_draw(void){assert(!test_draw_locked);test_draw_locked=true;}
@@ -462,6 +462,62 @@ unit += function('app_settings_book_paragraph_level', settings_source) + '\n'
 unit += function("book_layout_balanced_rect", layout_source) + "\n"
 unit += function("set_reader_view") + "\n"
 unit += function("ble_pt_action_for_usage", source.parents[2] / "components/ble_page_turner/src/ble_page_turner.c") + "\n"
+# rc108/rc117 起抽取函数引用留在 app_book.c 的声明与新静态量：前向声明统一补齐，顺序不再敏感。
+# rc108/rc117 extracted functions reference declarations/statics that stay inside app_book.c:
+# restate them here; forward declarations make extraction order irrelevant.
+unit += r"""
+static bool shelf_waiting_for_index(void);
+static bool shelf_scan_interrupted(app_ctx_t *ctx);
+static app_redraw_t queue_shelf_open(const char *path);
+static void cancel_shelf_open(void);
+static bool app_book_request_open(const char *path);
+static void copy_text(char *dst, size_t cap, const char *src);
+static bool shelf_order_apply(app_ctx_t *ctx, int mode, bool desc);
+static int shelf_order_mode(void);
+static bool shelf_order_desc(void);
+static void shelf_cache_save(void);
+static bool shelf_cache_load(app_ctx_t *ctx, bool background);
+static void reader_current_chapter(char *dst, size_t cap);
+static void book_ticket_note_position(const char *path, const book_progress_t *progress, const char *chapter, bool saved);
+static app_redraw_t toc_content_redraw(void);
+static bool s_shelf_open_queued;
+static bool s_toc_content_changed;
+static size_t s_part_base;
+static bool s_shelf_scan_yield_to_touch;
+static bool s_shelf_index_preloaded;
+static bool s_shelf_recheck_on_return;
+static int64_t s_shelf_input_ms;
+#if defined(_WIN32)
+#include <direct.h>
+#define mkdir(path,mode) _mkdir(path)
+#endif
+static bool app_touch_input_pending(app_ctx_t *ctx){(void)ctx;return false;}
+static bool book_weread_cover_metadata(const char *path,char *title,size_t title_cap,char *author,size_t author_cap){(void)path;(void)title;(void)title_cap;(void)author;(void)author_cap;return false;}
+static bool app_settings_try_shelf_order(unsigned order){s_shelf_order=(uint8_t)order;return true;}
+/* 扫描函数体内的书签/缓存回写：宿主保留语义中性的最小实现。*/
+/* Bookmark/cache write-backs inside scan bodies: minimal, behaviour-neutral host stand-ins.*/
+static void shelf_cache_save(void){}
+static bool shelf_cache_load(app_ctx_t *ctx,bool background){(void)ctx;(void)background;return false;}
+static void reader_current_chapter(char *dst, size_t cap){(void)cap;dst[0]=0;}
+static void book_ticket_note_position(const char *path,const book_progress_t *progress,const char *chapter,bool saved){(void)path;(void)progress;(void)chapter;(void)saved;}
+static void app_book_ticket_sample(int64_t now_ms,bool exposed){(void)now_ms;(void)exposed;}
+static void rc_pause_auto(void){}
+static void rc_stop_auto(void){}
+static void rc_cancel_side(void){}
+static bool s_rc_double_pending;
+static bool s_manage_style_restore;
+static void app_device_settings_request_shelf_style(void){}
+static const app_desc_t app_device_settings={0};
+static app_redraw_t bulk_cover_start(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static app_redraw_t cover_lookup_back(void){s_view=BULK;return APP_REDRAW_PAGE;}
+static app_redraw_t cover_lookup_page(int direction){(void)direction;return APP_REDRAW_NONE;}
+static void cover_lookup_cleanup(void){}
+static bool cover_lookup_resume(void){return false;}
+"""
+# 书架扫描中断判定与排队打开：抽取真实实现，供 scan_shelf_dir/scan_shelf/断言使用。
+# Extract the real scan-interruption guards and queued-open helpers.
+for name in ("shelf_waiting_for_index", "shelf_scan_interrupted", "queue_shelf_open", "cancel_shelf_open"):
+    unit += function(name) + "\n"
 unit += r'''
 static char s_chapter_heading_title[128],s_chapter_heading_label[32];
 static size_t s_chapter_lead_skip;
@@ -470,7 +526,7 @@ static void apply_chapter_lead(const char *title,const char *label,size_t skip,u
 static void refresh_chapter_lead(void){}
 '''
 for name in ("inline_ink_gray", "reader_margin_width", "reader_margin_levels", "reader_margin_level_for", "reader_margin_for_level", "slider_index", "reader_margin_input", "reader_area", "reader_fullscreen_progress_area", "body_rect_for_tracking", "body_rect", "progress_rect", "copy_text", "reader_footer_strip_number", "favorite_key", "favorite_read_handle", "shelf_hidden_key", "shelf_hidden_read_handle", "shelf_hidden_load", "shelf_hidden_save", "shelf_display_style", "shelf_rows", "row_rect", "shelf_category_add", "shelf_category_init", "shelf_category_matches", "shelf_category_remember", "shelf_category_restore", "shelf_categories_recount", "shelf_matches", "compare_books", "sort_shelf", "shelf_reserve", "delete_retry_find", "delete_retry_reserve", "delete_retry_discard", "scan_shelf_dir", "shelf_backfill_visit", "shelf_backfill_read_books", "scan_shelf", "refresh_cached_progress",
-             "pending_find", "pending_reserve", "pending_restore", "pending_discard", "pending_mark_latest", "pending_drop_invalidated", "pending_flush", "reader_page_offset", "reader_saved_offset", "save_progress", "retry_progress", "layout_name", "manage_panel", "manage_rect", "batch_rect", "manage_back_rect", "shelf_manage_rect", "shelf_sort_rect", "shelf_pager_group_rect", "shelf_search_rect", "shelf_search_clear_rect", "bulk_filter_rect", "bulk_nav_rect", "bulk_nav_hit", "bulk_sort_rect", "shelf_sort_menu_rect", "shelf_order_mode", "shelf_order_desc", "leaves", "selected_count", "clear_selection", "toggle_selection", "bookmark_compact", "search_begin", "refresh_search_matches", "search_finish", "shelf_search_clear", "refresh_capacity", "manage_apply", "manage_action", "batch_apply", "batch_action", "bulk_turn_page", "bulk_finish", "bulk_select_row", "bulk_action", "bulk_control_at", "menu_handle_enabled", "reader_manual_refresh", "apply_reader_option", "reader_return", "reader_key_action", "import_finish", "shelf_sort_gesture", "on_key", "on_key_long", "draw_wrapped_name", "open_requested_book", "on_enter", "book_on_exit"):
+             "pending_find", "pending_reserve", "pending_restore", "pending_discard", "pending_mark_latest", "pending_drop_invalidated", "pending_flush", "reader_page_offset", "reader_saved_offset", "save_progress", "retry_progress", "layout_name", "manage_panel", "manage_rect", "batch_rect", "manage_back_rect", "shelf_manage_rect", "shelf_sort_rect", "shelf_pager_group_rect", "shelf_search_rect", "shelf_search_clear_rect", "bulk_filter_rect", "bulk_nav_rect", "bulk_nav_hit", "bulk_sort_rect", "shelf_sort_menu_rect", "shelf_order_mode", "shelf_order_desc", "leaves", "selected_count", "clear_selection", "toggle_selection", "bookmark_compact", "search_begin", "refresh_search_matches", "search_finish", "shelf_search_clear", "refresh_capacity", "manage_apply", "manage_action", "batch_apply", "batch_action", "bulk_turn_page", "bulk_finish", "bulk_select_row", "bulk_action", "bulk_control_at", "menu_handle_enabled", "reader_manual_refresh", "apply_reader_option", "reader_return", "reader_key_action", "import_finish", "shelf_sort_gesture", "on_key", "on_key_long", "draw_wrapped_name", "open_requested_book", "on_enter", "book_on_exit", "app_book_request_open", "shelf_order_apply", "toc_content_redraw"):
     unit += function(name) + "\n"
 for name in ("book_remote_direction", "shelf_turn_page", "shelf_page_arrow_rect", "reader_swipe_direction"):
     unit += function(name) + "\n"
@@ -528,7 +584,9 @@ int main(void) {
     assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_NONE&&remote_ctx.leaf==2);
     assert(shelf_turn_page(&remote_ctx,-1)==APP_REDRAW_AREA&&remote_ctx.leaf==1);
     s_scan_pending=true;
-    assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_NONE&&remote_ctx.leaf==1);
+    /*rc108 起后台索引不再阻塞已有内容的翻页（shelf_waiting_for_index 只在无可见内容时挂起）。*/
+    /*Since rc108 a background scan no longer blocks paging when content is visible.*/
+    assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_AREA&&remote_ctx.leaf==2);
     s_scan_pending=false;s_view=MANAGE;
     assert(shelf_turn_page(&remote_ctx,1)==APP_REDRAW_NONE);
     EpdRect left=shelf_page_arrow_rect(-1),right=shelf_page_arrow_rect(1);
@@ -723,7 +781,10 @@ int main(void) {
     EpdRect entry=row_rect(0),hit;
     assert(bulk_control_at(&ctx,entry.x+10,entry.y+10,&hit)==0);
     int opening_calls=test_open_calls;
-    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_PAGE&&s_view==READING&&test_open_calls==opening_calls+1&&!selected_count());
+    /*rc116 起书架/批量打开改为排队：先入队，再由 open_requested_book 消费。*/
+    /*Since rc116 shelf/bulk opens queue; open_requested_book consumes the request.*/
+    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_NONE&&s_shelf_open_queued&&s_view==BULK);
+    assert(open_requested_book(&ctx)&&s_view==READING&&test_open_calls==opening_calls+1&&!selected_count());
     s_view=BULK;
     EpdRect hidden_action=batch_rect(3);
     assert(batch_action(&ctx,hidden_action.x+10,hidden_action.y+10)==APP_REDRAW_NONE&&!s_batch_confirm);
@@ -761,7 +822,7 @@ int main(void) {
     assert(bulk_turn_page(&ctx,1)==APP_REDRAW_NONE);
     EpdRect sort_name=bulk_sort_rect(0);
     assert(bulk_action(&ctx,sort_name.x+20,sort_name.y+20)==APP_REDRAW_PAGE&&selected_count()==1);
-    EpdRect sort_done=bulk_sort_rect(5);
+    EpdRect sort_done=bulk_sort_rect(6);/*rc107 误写为 rect(5)：app 侧选完排序项不关菜单，仅 rect(6) 为完成键*/
     assert(bulk_action(&ctx,sort_done.x+20,sort_done.y+20)==APP_REDRAW_PAGE&&!s_sort_menu&&selected_count()==1);
     assert(bulk_action(&ctx,600,267)==APP_REDRAW_PAGE&&!s_bulk_selecting&&!selected_count());
     assert(bulk_select_row(&ctx,0)==APP_REDRAW_PAGE);
@@ -891,7 +952,9 @@ int main(void) {
     s_view=READING;test_nav_target=-1;s_text="body";
     assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_FULL&&test_nav_target==-1&&s_view==READING);
     // 屏幕返回仍回来源，中键长按始终全刷。/ Screen back returns to source; middle holds always refresh.
-    assert(reader_return(&ctx)==APP_REDRAW_PAGE&&s_view==SHELF);
+    /*rc116 返回书架改为整页重画（free_book + 回到缓存书架）。*/
+    /*Since rc116 returning to the shelf repaints the full page.*/
+    assert(reader_return(&ctx)==APP_REDRAW_FULL&&s_view==SHELF);
     s_view=READING;s_text="text";s_reader_fullscreen=true;test_hold_refresh=true;test_nav_target=-1;
     s_reader_return_home=true;s_reader_panel=READER_PANEL_TOOLS;s_reader_slider=0;
     s_reader_footer_pending=s_reader_image_refresh_pending=s_water_turn_pending=s_reader_cleanup=true;
@@ -912,7 +975,9 @@ int main(void) {
     assert(test_reflows==4&&test_image_preparations==2);
     assert(apply_reader_option(&ctx,2)==APP_REDRAW_PAGE&&!test_hide_images&&test_images_visible&&s_page==1);
     test_hold_action=APP_READER_KEY_HOME;test_nav_target=-1;
-    assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_PAGE && test_nav_target==-1 && s_view==SHELF);
+    /*阅读页长按 HOME：rc116 返回书架时整页重画（与 reader_return 一致）。*/
+    /*In-reader HOME long-press: since rc116 the shelf return repaints the whole page.*/
+    assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_FULL && test_nav_target==-1 && s_view==SHELF);
     s_view=READING;s_reader_return_home=true;
     assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_NONE && test_nav_target==0);
     test_hold_action=APP_READER_KEY_REFRESH;
@@ -949,31 +1014,36 @@ int main(void) {
     clear_selection();toggle_selection(0);toggle_selection(14);
     char identity0[288],identity1[288];strcpy(identity0,s_shelf[0].path);strcpy(identity1,s_shelf[14].path);
     EpdRect menu=bulk_filter_rect(1);assert(bulk_action(&ctx,menu.x+10,menu.y+10)==APP_REDRAW_PAGE&&s_sort_menu);
-    for(int mode=0;mode<3;++mode)for(int desc=0;desc<2;++desc){
+    for(int mode=0;mode<4;++mode)for(int desc=0;desc<2;++desc){/*rc107 误收窄为 mode<3 且把升降序键 rect(5)/rect(4) 误写成 rect(4)/rect(3)*/
         EpdRect choice=bulk_sort_rect(mode);bulk_action(&ctx,choice.x+5,choice.y+5);
-        choice=bulk_sort_rect(desc?4:3);bulk_action(&ctx,choice.x+5,choice.y+5);
+        choice=bulk_sort_rect(desc?5:4);bulk_action(&ctx,choice.x+5,choice.y+5);
         assert(selected_count()==2&&shelf_order_mode()==mode&&shelf_order_desc()==(bool)desc);
         int found=0;for(int i=0;i<s_count;++i)if(s_shelf[i].selected){assert(!strcmp(s_shelf[i].path,identity0)||!strcmp(s_shelf[i].path,identity1));++found;}assert(found==2);
     }
     assert(on_key(&ctx,UI_KEY_2)==APP_REDRAW_PAGE&&!s_sort_menu&&s_view==BULK&&selected_count()==2);
 
-    // 主书架三模式菜单不穿透，保留管理中的升降序；导入返回原管理分页。
-    // Main sorting owns contacts, retains management direction settings, and import returns to its management page.
+    // 主书架四模式菜单不穿透、选档后面板保持打开（app 的 shelf_sort_gesture 自 rc106 起未变，rc107 误断言为关闭）。
+    // Main sorting owns contacts, keeps the panel open after picking a mode, and import returns to its management page.
     s_view=SHELF;test_shelf_style=5;s_batch_confirm=false;s_clear_confirm=false;s_scan_pending=false;
     EpdRect manage_header=shelf_manage_rect(),sort_header=shelf_sort_rect();
     assert(manage_header.x==420&&manage_header.x+manage_header.width<=sort_header.x);
     assert(!ui_rect_hit((EpdRect){24,79,326,74},manage_header.x,110));
-    const unsigned orders[]={1,5,0};
-    for(int i=0;i<3;++i){
-        s_shelf_order=orders[(i+1)%3];s_sort_menu=true;ctx.leaf=2;
+    const int sort_modes[]={1,2,0,3};            // 最近阅读 / 添加时间 / 书名 / 阅读进度
+    const unsigned sort_start[]={0,0,3,0};    // 与待选档不同，走默认方向分支
+    const unsigned sort_want[]={1,5,0,7};    // shelf_order_apply 的 0..7 编码
+    for(int i=0;i<4;++i){
+        s_shelf_order=sort_start[i];s_sort_menu=true;ctx.leaf=2;
         EpdRect row=shelf_sort_menu_rect(i);
         ui_gesture_event_t event={.type=UI_GESTURE_TAP,.x0=row.x+10,.y0=row.y+10,.x=row.x+12,.y=row.y+12};
-        assert(shelf_sort_gesture(&ctx,&event)==APP_REDRAW_PAGE&&!s_sort_menu&&s_shelf_order==orders[i]&&ctx.leaf==0);
-        assert(s_recent_sort==(i==0));
+        assert(shelf_sort_gesture(&ctx,&event)==APP_REDRAW_PAGE&&s_sort_menu&&
+               s_shelf_order==sort_want[i]&&ctx.leaf==0&&s_recent_sort==(sort_modes[i]==1));
+        // 重复点同一档保留既有方向，不回落到默认方向。
+        assert(shelf_sort_gesture(&ctx,&event)==APP_REDRAW_PAGE&&s_sort_menu&&
+               s_shelf_order==sort_want[i]);
     }
     s_shelf_order=3;s_sort_menu=true;
     ui_gesture_event_t same_sort={.type=UI_GESTURE_TAP,.x0=410,.y0=185,.x=410,.y=185};
-    shelf_sort_gesture(&ctx,&same_sort);assert(s_shelf_order==3&&!s_sort_menu);
+    shelf_sort_gesture(&ctx,&same_sort);assert(s_shelf_order==3&&s_sort_menu);/*重复点当前档：方向保留、面板不关*/
     s_sort_menu=true;ui_gesture_event_t crossing={.type=UI_GESTURE_TAP,.x0=410,.y0=185,.x=410,.y=275};
     shelf_sort_gesture(&ctx,&crossing);assert(!s_sort_menu&&s_shelf_order==3);
     s_sort_menu=true;crossing=(ui_gesture_event_t){.type=UI_GESTURE_TAP,.x0=150,.y0=700,.x=150,.y=700};
@@ -997,7 +1067,12 @@ with tempfile.TemporaryDirectory() as tmp:
     c = Path(tmp) / "test.c"
     exe = Path(tmp) / "test"
     c.write_text(unit, encoding="utf-8")
+    # mingw 的 gcc16 对既有 snprintf/restrict 模式过度告警（win32 only）；CI Linux 诊断不变。
+    # mingw gcc16 over-warns on existing snprintf/restrict patterns (win32 only); CI Linux keeps its diagnostics.
+    from font_hanzi_host_support import host_compat
+    compat = host_compat(tmp)['compile']
     subprocess.run(["cc", "-std=c11", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable",
                     "-Wno-unused-function", "-fsanitize=address,undefined", "-I", str(source.parents[1] / "ui"), "-I", str(source.parents[1] / "book"),
+                    ] + compat + [
                     str(c), str(source.parents[1] / "ui/ui_text_edit.c"), "-o", str(exe)], check=True)
     subprocess.run([str(exe)], check=True)

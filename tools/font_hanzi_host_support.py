@@ -29,7 +29,7 @@ def host_compat(work: Path) -> dict:
     # gcc16 on mingw over-warns on existing snprintf patterns; disable the warning
     # outright here (fully disabling avoids -Werror ordering subtleties). Linux/macOS
     # CI keeps its own diagnostics unchanged.
-    return {'compile': ['-include', str(header), '-Wno-format-truncation'], 'link': [str(src)]}
+    return {'compile': ['-include', str(header), '-Wno-format-truncation', '-Wno-restrict'], 'link': [str(src)]}
 
 def font_hanzi_host_sources(root: Path, work: Path) -> list[str]:
 
