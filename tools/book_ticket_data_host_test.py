@@ -5,7 +5,14 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-source = r'''
+import sys as _sys
+_gmtime_shim = ('#if defined(_WIN32)\n'
+    '#include <time.h>\n'
+    '/* mingw lacks gmtime_r; gmtime_s swaps arguments. */\n'
+    'static inline struct tm *kiiko_gmtime_r(const time_t *t, struct tm *out) { return gmtime_s(out, t) ? NULL : out; }\n'
+    '#define gmtime_r kiiko_gmtime_r\n'
+    '#endif\n') if _sys.platform == 'win32' else ''
+source = _gmtime_shim + r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>

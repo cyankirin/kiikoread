@@ -13,6 +13,16 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 UNIT = r'''
+#if defined(_WIN32)
+/* mingw rename() 不替换已存在目标；宿主验证流程逻辑（真机原子性由 FAT 驱动保证）。
+   mingw rename() refuses to replace an existing target; host runs only verify the flow. */
+#include <stdio.h>
+static inline int kiiko_host_rename(const char *oldpath, const char *newpath) {
+    remove(newpath);
+    return rename(oldpath, newpath);
+}
+#define rename kiiko_host_rename
+#endif
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>

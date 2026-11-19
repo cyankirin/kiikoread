@@ -297,6 +297,32 @@ int main(int argc,char **argv){
     # open 模式；CI 的 gc-sections 会丢弃这些路径，不参与链接。
     # Windows mingw keeps every unreferenced section: link a standalone stub source with
     # display/mapping stubs and binary open mode; CI gc-sections drops these paths.
+    # Windows mingw 保留全部未引用段：以独立源文件提供可链接的显示/贴图桩并强制二进制
+    # open 模式；CI 的 gc-sections 会丢弃这些路径，不参与链接。
+    # Windows mingw keeps every unreferenced section: link a standalone stub source with
+    # display/mapping stubs and binary open mode; CI gc-sections drops these paths.
+    win_stubs=work / 'win_stubs.c'
+    win_stubs.write_text(
+        '#include <stdint.h>\n#include <stdbool.h>\n#include <fcntl.h>\n'
+        '#if defined(_WIN32) || defined(__MINGW32__)\nint _fmode=_O_BINARY;\n#endif\n'
+        'typedef struct { int x, y, width, height; } EpdRect;\n'
+        'enum EpdRotation { EPD_ROT_LANDSCAPE, EPD_ROT_PORTRAIT, EPD_ROT_INVERTED_LANDSCAPE, EPD_ROT_INVERTED_PORTRAIT };\n'
+        'enum EpdRotation epd_get_rotation(void){return EPD_ROT_LANDSCAPE;}\n'
+        'static int stub_w,stub_h,stub_rw,stub_rh;int epd_width(void){return stub_w;}int epd_height(void){return stub_h;}\n'
+        'int epd_rotated_display_width(void){return stub_rw;}int epd_rotated_display_height(void){return stub_rh;}\n'
+        'uint8_t epd_get_pixel(int x,int y,int width,int height,const uint8_t *fb){(void)x;(void)y;(void)width;(void)height;(void)fb;return 15;}\n'
+        'void epd_draw_line(int x0,int y0,int x1,int y1,uint8_t color,uint8_t *fb){(void)x0;(void)y0;(void)x1;(void)y1;(void)color;(void)fb;}\n'
+        'void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
+        'void epd_fill_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
+        'void epd_fill_circle_helper(int x,int y,int radius,int corners,int delta,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)corners;(void)delta;(void)color;(void)fb;}\n'
+        'void epd_draw_rotated_image(EpdRect rect,const uint8_t *image,uint8_t *fb){(void)rect;(void)image;(void)fb;}\n'
+        'int dm_encode(const char*text,uint8_t*modules,int*dim){(void)text;(void)modules;(void)dim;return 0;}\n'
+        'bool ui_glass_panel(uint8_t *fb,EpdRect rect,int radius,int white,int refract){(void)fb;(void)rect;(void)radius;(void)white;(void)refract;return false;}\n'
+        'uint8_t ui_image_dither_bw(uint8_t gray,int x,int y){(void)x;(void)y;return gray;}\n'
+        'uint8_t ui_image_dither_acrylic_bw(uint8_t gray,int x,int y){(void)x;(void)y;return gray;}\n'
+        'int ui_font_ascender_px(int px){(void)px;return 0;}\n'
+        # overlay unit defines font_size only; contrast is stubbed here.
+        'uint8_t app_settings_system_contrast(void){return 15;}\n')
     helper='static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}'+'\n'+function('draw_reading_font_name',ROOT/'main/apps/app_book.c')+'\n'
     unit=unit.replace('int main(int argc,char **argv){',helper+'int main(int argc,char **argv){')
     (work / 'test.c').write_text(unit)
@@ -309,7 +335,7 @@ int main(int argc,char **argv){
     subprocess.run(flags + compat + ['-Dopen=title_test_open', '-Dclose=title_test_close', '-c',
                             str(ROOT / 'main/font/ttf_font.c'), '-o', str(work / 'ttf.o')], check=True)
     gc = '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections'
-    subprocess.run(flags + compat + font_hanzi_host_sources(ROOT,work)+ host_compat(work)['link'] + [str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
+    subprocess.run(flags + compat + font_hanzi_host_sources(ROOT,work)+ host_compat(work)['link'] + [str(win_stubs), str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
                             str(ROOT / 'main/ui/ui_kit.c'), '-lm', gc, '-o', str(work / 'test')], check=True)
     args=[str(work / 'test'), str(work / 'system.ttf'), str(work / 'reader.ttf')]
     if os.environ.get('METALIO_TEST_USER_FONT'):args.append(os.environ['METALIO_TEST_USER_FONT'])

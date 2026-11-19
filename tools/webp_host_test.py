@@ -89,6 +89,13 @@ def main() -> int:
             raise SystemExit(f'missing fixture: {path}')
 
     common = ['cc', '-std=c11', '-D_DEFAULT_SOURCE', '-Wall', '-Wextra', *SANITIZE, *local_flags()]
+    # mingw 的 mkdir 单参（POSIX 两参）；win32 注 shim 头，CI Linux 诊断不变。
+    # mingw takes single-arg mkdir; win32 injects a shim header, CI Linux unchanged.
+    import sys as _sys, tempfile as _tempfile
+    if _sys.platform == 'win32':
+        shim = Path(_tempfile.gettempdir()) / 'kiiko_webp_mkdir_shim.h'
+        shim.write_text('#if defined(_WIN32)\n#include <direct.h>\n#define mkdir(path,mode) _mkdir(path)\n#endif\n')
+        common += ['-include', str(shim)]
     with tempfile.TemporaryDirectory(prefix='kiiko-webp-host-') as directory:
         work = Path(directory)
         objects = []

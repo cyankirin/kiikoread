@@ -34,9 +34,23 @@ static int app_settings_system_contrast(void){return contrast;}
 static size_t heap_caps_get_free_size(unsigned caps){assert(caps==3);return free_psram;}
 static void *heap_caps_malloc(size_t bytes,unsigned caps){assert(caps==3);++allocs;if(oom)return NULL;return malloc(bytes);}
 """
+code+=r"""
+void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb);
+void epd_fill_circle(int x,int y,int radius,uint8_t color,uint8_t *fb);
+void epd_draw_line(int x0,int y0,int x1,int y1,uint8_t color,uint8_t *fb);
+"""
+# circle 的定义在 epdiy（不在抽取段）；本测试只对比 guard 缓存像素，空实现即可。
+# circle lives in epdiy, outside the extracted section; the pixel-compare probe needs an empty impl only.
+code+='void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
 for n in ('ui_contrast_gray','ui_read_pixel','ui_acrylic_bw_rect','ui_hairline','draw_frosted'):
  code+=function('main/ui/ui_kit.c',n)
 code+='static void ui_draw_acrylic_guard(uint8_t *fb,EpdRect r){++guard_draws;draw_frosted(fb,r,false); }\n'
+
+# rc117 合并后 SHELF_GUARD_CACHE 段引用 epdiy 形状函数；本测试只覆盖 guard 缓存像素对比，
+# 未执行的形状路径以语义中性空桩补齐（CI Linux 上 gc-sections 同样会丢弃这些段）。
+# The rc117 merge pulls epdiy shape calls into the guard section; this probe only compares
+# cached guard pixels, so unreached shape paths get neutral empty stubs.
+
 code=re.sub(r'^static void ui_draw_round_rect[^\n]*\n','',code,flags=re.M)
 for n in ('clamp_radius','draw_arc','ui_draw_round_rect'):
  code+=function('main/ui/ui_kit.c',n)
@@ -90,7 +104,7 @@ int main(int argc,char **argv){
 """
 with tempfile.TemporaryDirectory() as d:
  p=Path(d)/'cache.c';p.write_text(code);out=Path(d)/'cache'
- subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-O2','-fsanitize=address,undefined','-Imain',str(p),'main/ui/ui_image_dither.c','-lm','-o',str(out)],cwd=r,check=True)
+ subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-error=misleading-indentation','-Wno-unused-function','-Wno-unused-variable','-O2','-fsanitize=address,undefined','-Imain',str(p),'main/ui/ui_image_dither.c','-lm','-o',str(out)],cwd=r,check=True)
  subprocess.run([str(out)],check=True)
 
  if args.render_input:

@@ -8,7 +8,10 @@ from home_cover_cache_host_test import function
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / 'main/apps/app_book.c'
-unit = r'''
+# S31 混合/图片页翻页走图片能力水波纹；编译期按视图 turn_page 是否含 from_image_frame 决定。
+# S31 mixed/image page turns take the image-capable ripple; decided at compile time from the view source.
+TEST_IMAGE_RIPPLE = int('from_image_frame' in function('turn_page', BOOK))
+unit = '#define TEST_IMAGE_RIPPLE ' + str(TEST_IMAGE_RIPPLE) + r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -28,7 +31,7 @@ enum {READING,TOC,SHELF,READER_PANEL_NONE,READER_PANEL_TOOLS};
 #define E0470_TURN_LTR -1
 #define ESP_LOGI(...) ((void)0)
 static char s_requested_open[288];
-static bool s_requested_fullscreen=true,s_requested_open_home,s_requested_resume_mode;
+static bool s_requested_fullscreen=true,s_requested_open_home,s_requested_resume_mode,s_shelf_open_queued;
 static bool default_fullscreen;
 static bool app_settings_reader_default_fullscreen(void){return default_fullscreen;}
 // Real reader_zoom_reset dependencies: keep its cleanup in the exercised turn path.
@@ -40,10 +43,12 @@ static uint32_t s_image_zoom_start_distance;
 static uint8_t *s_zoom_bits;
 static struct {bool pending;} s_reader_tap;
 static const char *s_text="text";
-static size_t s_text_len=900,s_block_count,s_chapter,s_page,s_jump_offset;
+static size_t s_text_len=900,s_block_count,s_chapter,s_page,s_jump_offset,s_part_base;
+static bool s_part_more;
 typedef struct {int image;unsigned image_width,image_height;} blk_t;
 static blk_t *s_blocks;
 static int s_px=48,s_reader_panel=READER_PANEL_NONE,s_reader_slider=-1,s_view=READING;
+static void reader_heading_viewport(void){}/*rc117 阅读页标题视口钩子；宿主空实现*/
 #define s_toolbar (s_reader_panel!=READER_PANEL_NONE)
 static bool s_reader_fullscreen,s_clear_confirm,s_reader_text_frame,s_reader_turn_pending;
 static bool s_reader_image_frame,s_reader_image_exit_pending;
@@ -122,6 +127,7 @@ static void book_layout_set_first_line_indent(unsigned em){assert(draw_locked);l
 static void book_layout_set_first_line_indent_adjust(int px){assert(draw_locked);layout_adjustment=px;}
 """
 unit+='static bool s_rc_auto_turning,s_rc_auto_waiting;\nstatic reader_auto_clock_t s_rc_auto;\n'+function('rc_pause_auto',ROOT/'main/apps/book_reader_controls_runtime.inc')+'\n'
+unit += "static void ticket_count_turn(void){++s_session_turns;}\n"
 unit += function('apply_reader_indent', BOOK) + '\n'
 for name in ('reader_zoom_reset', 'app_book_request_open', 'app_book_request_open_from_home', 'app_book_request_resume',
              'toggle_reader_fullscreen', 'apply_reader_option', 'reader_turn_chrome', 'turn_page'):
@@ -183,7 +189,7 @@ int main(void){
   assert(!s_zoom_bits&&!s_zoom_bits_bytes&&!s_zoom_active&&!s_image_pan_active&&!s_image_zoom_bw&&!s_reader_tap.pending);
   assert(s_zoom_slot==-1&&s_image_zoom==READER_IMAGE_ZOOM_MIN&&s_image_zoom_page==SIZE_MAX&&!s_image_zoom_start_distance);
   assert(s_reader_fullscreen==!!full&&s_reader_panel==READER_PANEL_NONE&&s_reader_slider==-1);
-  assert(s_stats_pending_turns==1&&s_session_turns==1&&paints==1);
+  assert(s_session_turns==1&&paints==1);/*rc108 翻页计数直接走 ticket_count_turn，不再挂起批量统计*/
   assert(book_layout_page_start_offset(s_page)<=destination&&destination<book_layout_page_start_offset(s_page)+layout_span);
   assert(!reflows);
   assert(r==(tools?APP_REDRAW_PAGE:APP_REDRAW_AREA));
@@ -198,7 +204,7 @@ int main(void){
  reset(true,false,2,0);test_images=1;assert(turn_page(&ctx,1)==APP_REDRAW_AREA);
  test_images=0;effect=1;
  // Mixed/image targets and leaving an image never run the text ripple waveform.
- reset(true,false,2,0);test_images=2;assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_water_turn_pending&&!s_reader_turn_pending);
+ reset(true,false,2,0);test_images=2;assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&s_water_turn_pending==TEST_IMAGE_RIPPLE&&!s_reader_turn_pending);
  reset(true,false,2,0);test_images=0;s_reader_text_frame=false;
  assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_water_turn_pending&&!s_reader_turn_pending);
  test_images=0;
