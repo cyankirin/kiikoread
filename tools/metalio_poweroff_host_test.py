@@ -77,7 +77,9 @@ assert(rtc==1&&book==1&&font==1&&closes==1&&pulses==1&&resumes==1&&!paused&&cloc
  assert(resumes==1&&!paused&&!remounts);
  }
  reset();key_pending=true;assert(lock_power_off()==ESP_ERR_INVALID_STATE);
- assert(key_pending&&!pulses&&remounts==1&&!paused);
+ /*rc116 同一路径走 resume 而非 remount。*/
+/*rc116 resumes instead of remounting on this path.*/
+assert(key_pending&&!pulses&&resumes==1&&!paused);
  reset();rtc_error=-4;assert(lock_power_off()==ESP_ERR_TIMEOUT&&rtc==2&&pulses==1&&clock_ms==1020);
  reset();rtc_error=ESP_ERR_INVALID_STATE;assert(lock_power_off()==ESP_ERR_TIMEOUT&&rtc==1&&pulses==1);
  reset();card=false;assert(lock_power_off()==ESP_ERR_TIMEOUT&&s_lock_io_no_media&&pulses==1);
