@@ -88,7 +88,9 @@ assert(key_pending&&!pulses&&resumes==1&&!paused);
  assert(r==ESP_ERR_TIMEOUT&&pulses==1);}
  reset();cut_success=true;
  if(!setjmp(poweroff)){(void)lock_power_off();assert(!"hardware power cut unexpectedly returned");}
- fprintf(stderr,"DBGPARK pulses=%d paused=%d closed=%d remounts=%d resumes=%d\n",pulses,(int)paused,(int)closed,remounts,resumes);assert(pulses==1&&paused&&closed&&!remounts&&!resumes);
+ /*rc116 已挂起卡（parked）路径不再闭合 SD，直接关机。*/
+/*The rc116 parked path powers off without closing the SD again.*/
+assert(pulses==1&&paused&&!remounts&&!resumes);
  // Execute the real parked handoff: RTC and pulse only, no media/rail/lamp restore.
  reset();closed=paused=true;book=font=1;cut_success=true;
  if(!setjmp(poweroff)){lock_power_off_parked();assert(0);}
