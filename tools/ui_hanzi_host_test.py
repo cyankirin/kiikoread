@@ -138,7 +138,7 @@ int main(void){
    # Windows 命令行会剥掉 -D 值里的引号，改用强制包含头注入路径。/ -D quoting breaks on Windows; inject via a forced include.
    (work/'font_path.h').write_text('#define UI_HANZI_FLASH_FONT_PATH "%s"\n'%font_path)
    flags+=['-include',str(work/'font_path.h')]
-  subprocess.run(flags+[str(work/'test.c'),str(work/'assets.c'),str(ROOT/'main/font/ui_font.c'),str(ROOT/'main/font/ui_hanzi.c'),'-lz','-o',str(work/'test')],check=True)
+  subprocess.run(flags+[str(work/'test.c'),str(work/'assets.c'),str(ROOT/'main/font/ui_font.c'),str(ROOT/'main/font/ui_hanzi.c'),'-lz','-lm','-o',str(work/'test')],check=True)
   subprocess.run([str(work/'test')],check=True)
 # 降级分支：宿主上默认路径不存在，自动落到内嵌 PIF1。
 # Degraded branch: the default path is absent on hosts, so the embedded PIF1 kicks in.

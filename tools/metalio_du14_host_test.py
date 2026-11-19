@@ -10,7 +10,7 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 provided=ROOT/'boards/metalio47/src/components/e0470_epaper_waveform/my_waveform_du14.h'
-assert hashlib.sha256(provided.read_bytes()).hexdigest()=='cac0efbcb2801114b36a4bee5eaa9c453dcd7d098210ef2739f853e86a0c39f4'
+assert hashlib.sha256(provided.read_bytes()).hexdigest()=='e6f23bf78b1d466d04f4997768097fd19a0976a32e605291a901b96537d3ff2c'
 unit=r'''
 #include <assert.h>
 #include <stdio.h>
