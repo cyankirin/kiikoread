@@ -139,11 +139,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [pico]
-    # 本 fork 只为 Pico 出固件并做门禁（用户 2026-11-03 要求）；metalio47 在 5 MiB 槽下
-    # 已溢出 ~7.4 KB，待裁剪方案确定后再恢复双板构建与发布。
-    # This fork ships only Pico (user request 2026-11-03); the metalio47 image now overflows its
-    # 5 MiB slot by ~7.4 KB, so dual-board builds resume once a trimming plan is decided.
+        board: [pico, metalio47]
+    # 双板同发（用户 2026-11-19 恢复，见 AGENTS.md）：metalio 在裁剪使 app_check_size 通过前构建为红。
+    # Dual-board again per the 2026-11-19 decision (see AGENTS.md); the metalio build stays red
+    # until trimming brings app_check_size back to green.
     container: espressif/idf:v6.1
     steps:
       - uses: actions/checkout@v4
