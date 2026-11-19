@@ -82,7 +82,7 @@ assert(rtc==1&&book==1&&font==1&&closes==1&&pulses==1&&resumes==1&&!paused&&cloc
 assert(key_pending&&!pulses&&resumes==1&&!paused);
  reset();rtc_error=-4;assert(lock_power_off()==ESP_ERR_TIMEOUT&&rtc==2&&pulses==1&&clock_ms==1020);
  reset();rtc_error=ESP_ERR_INVALID_STATE;assert(lock_power_off()==ESP_ERR_TIMEOUT&&rtc==1&&pulses==1);
- reset();card=false;assert(lock_power_off()==ESP_ERR_TIMEOUT&&s_lock_io_no_media&&pulses==1);
+ reset();card=false;{esp_err_t r=lock_power_off();fprintf(stderr,"DBGNOCARD r=%d no_media=%d pulses=%d resumes=%d remounts=%d closed=%d\n",(int)r,(int)s_lock_io_no_media,pulses,resumes,remounts,(int)closed);assert(r==ESP_ERR_TIMEOUT&&s_lock_io_no_media&&pulses==1);}
  reset();cut_success=true;
  if(!setjmp(poweroff)){(void)lock_power_off();assert(!"hardware power cut unexpectedly returned");}
  assert(pulses==1&&paused&&closed&&!remounts&&!resumes);
