@@ -640,7 +640,7 @@ static bool emit_line(FILE* f, size_t* written, const char* text) {
 esp_err_t anki_progress_export(int64_t deck_id, char* out_path, size_t out_path_len) {
     if (out_path && out_path_len > 0) out_path[0] = 0;
     if (deck_id <= 0) return ESP_ERR_INVALID_ARG;
-    esp_err_t err = book_store_ensure_flash();
+    esp_err_t err = book_store_prepare_flash();
     if (err != ESP_OK) return err;
     // Q3：统一活动根，不实现「无 TF 卡禁用」分支。
     // Q3: always the active root; no TF-card gating branch.
@@ -783,7 +783,7 @@ esp_err_t anki_progress_export(int64_t deck_id, char* out_path, size_t out_path_
 
 esp_err_t anki_progress_list_backups(anki_backup_visit_fn visit, void* ctx) {
     if (!visit) return ESP_ERR_INVALID_ARG;
-    (void)book_store_ensure_flash();
+    (void)book_store_prepare_flash();
     const char* active = anki_store_active_root();
     const char* other = strcmp(active, ANKI_DIR_TF) == 0 ? ANKI_DIR : ANKI_DIR_TF;
     const char* roots[2] = {active, other};
@@ -832,7 +832,7 @@ esp_err_t anki_progress_list_backups(anki_backup_visit_fn visit, void* ctx) {
 esp_err_t anki_progress_restore(const char* backup_path, anki_progress_result_t* out) {
     if (!backup_path || !*backup_path || !out) return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out));
-    esp_err_t err = book_store_ensure_flash();
+    esp_err_t err = book_store_prepare_flash();
     if (err != ESP_OK) return err;
     // 先打开再量尺寸：不存在的备份按 §2.5 返回 NOT_FOUND，且避免 TOCTOU。
     // Open before stat: a missing backup is NOT_FOUND (§2.5), no TOCTOU.
@@ -951,7 +951,7 @@ esp_err_t anki_progress_restore(const char* backup_path, anki_progress_result_t*
 }
 
 void anki_progress_recover(void) {
-    (void)book_store_ensure_flash();
+    (void)book_store_prepare_flash();
     const char* active = anki_store_active_root();
     const char* other = strcmp(active, ANKI_DIR_TF) == 0 ? ANKI_DIR : ANKI_DIR_TF;
     const char* roots[2] = {active, other};

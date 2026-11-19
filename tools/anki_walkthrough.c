@@ -35,7 +35,7 @@
 #include "anki_store.h"
 
 /* 存储模块依赖 book_store 的挂载助手；宿主恒成功。/ Mount helper stub. */
-esp_err_t book_store_ensure_flash(void) { return ESP_OK; }
+esp_err_t book_store_prepare_flash(void) { return ESP_OK; }
 
 /* 基准卡数：默认是仓库 QA 基准卡组（rc99.03 基线 1375 卡）。
 / Baseline card count: the repository QA deck by default (rc99.03 baseline,

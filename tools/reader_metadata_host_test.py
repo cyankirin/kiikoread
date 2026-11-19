@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
-"""中文：真实信息栏绘制、章数及延迟局刷回归。/ English: Actual metadata paint, chapter counts and deferred partial updates."""
+"""中文：真实信息栏绘制、本章页码及延迟局刷回归。/ English: Actual metadata paint, chapter page counts and deferred partial updates."""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,6 +8,7 @@ from home_cover_cache_host_test import function
 
 ROOT = Path(__file__).resolve().parents[1]
 source = ROOT/'main/apps/app_book.c'
+separate_footer = 'static bool present_reader_footer(' in source.read_text()
 unit = r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -15,7 +16,7 @@ unit = r'''
 #include <stdio.h>
 #include <string.h>
 #include "ui_reader_layout.h"
-enum {READING,SHELF,READER_PANEL_NONE,READER_PANEL_OTHER,MODE_DU,EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_RIGHT,EPD_DRAW_ALIGN_CENTER,UI_ICON_BOOK_BOOKMARK,UI_ICON_BOOK,UI_ICON_EXPAND};
+enum {READING,SHELF,READER_PANEL_NONE,READER_PANEL_OTHER,READER_PANEL_TOUCH_SETTINGS,READER_PANEL_TOUCH_MORE,MODE_DU,EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_RIGHT,EPD_DRAW_ALIGN_CENTER,UI_ICON_BOOK_BOOKMARK,UI_ICON_BOOK,UI_ICON_EXPAND};
 enum EpdDrawError {EPD_DRAW_SUCCESS,EPD_DRAW_OTHER_ERROR};
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_DONE} app_redraw_t;
 typedef struct {bool touched;} touch_t;
@@ -29,14 +30,18 @@ typedef struct {void *hl;uint8_t *fb;int64_t now_ms;bool consumed,request_app,re
 #define UI_NAV_BACKGROUND_GRAY 0xe0
 #define UI_GRAY_BLACK 0
 static int s_view=READING,s_reader_panel=READER_PANEL_NONE,E0470_FOLLOW_WAVEFORM;
-// 上游把状态栏判定拆成了独立函数；本探针的 s_reader_panel 恒为 NONE，
-// 真实实现在这里恒返回 true。/ Upstream split the status-bar check into its own
-// function; with s_reader_panel fixed at NONE the real implementation is always true.
-static bool app_book_status_bar_visible(void){return true;}
 static bool immersive;
 static bool app_settings_reader_immersive(void){return immersive;}
 static bool s_reader_fullscreen=false,s_toolbar,s_clear_confirm,s_reader_footer_pending,s_save_failed;
+static const char *s_path="/sdcard/book.txt";
+typedef struct{bool dirty,progress_saved;}pending_progress_t;
+static pending_progress_t current_progress;
+static bool has_current_progress;
+static unsigned warnings,warning_ink;
+static pending_progress_t *pending_find(const char *path){assert(!strcmp(path,s_path));return has_current_progress?&current_progress:NULL;}
+static void ui_draw_control_frame(uint8_t *fb,EpdRect r,int radius,int gray){(void)fb;assert(r.x==8&&r.width==16&&r.height==16&&radius==5&&gray==0);++warnings;}
 static const char *s_text="body";
+static size_t s_chapter=36,total_pages=100;
 static int64_t s_reader_footer_due_ms;
 static int calls,guards,text_calls,bar_calls,fill_calls,status_calls;
 static void ui_nav_status(uint8_t *fb){(void)fb;++status_calls;}
@@ -53,41 +58,25 @@ static void ui_hairline(uint8_t *fb,int y,int x,int width,int gray){(void)fb;ass
 
 static enum EpdDrawError error;
 static const char *expected_chapter="Chapter name";
+static size_t s_part_base;
+static bool s_part_more;
 static unsigned percent(size_t page){return (unsigned)page;}
+static size_t book_layout_page_count(void){return total_pages;}
 static void fit_fixed_text(char *text,int px,int width){assert(px>0&&width>0);(void)text;}
 static int ui_text_fixed_width_px(int px,const char *text){return (int)strlen(text)*px/2;}
 static void reader_footer_chapter_name(char *text,size_t cap){snprintf(text,cap,"%s",expected_chapter);}
-static void ui_fill_rect_fast(EpdRect r,int color,uint8_t *fb){(void)fb;assert(color==255||color==UI_NAV_BACKGROUND_GRAY);if(s_reader_fullscreen&&immersive)assert(r.y==1204&&r.height==12);else if(r.y==0)assert(r.height==(s_reader_fullscreen?80:152));else if(!s_reader_fullscreen&&r.y==152)assert(r.height==24&&r.width==684&&color==UI_GRAY_WHITE);else assert(r.y==(s_reader_fullscreen?1168:1048));++fill_calls;}
+static void ui_fill_rect_fast(EpdRect r,int color,uint8_t *fb){(void)fb;if(r.width==2){assert(color==0&&r.x==15&&(r.height==2||r.height==6));++warning_ink;return;}assert(color==255||color==UI_NAV_BACKGROUND_GRAY);if(s_reader_fullscreen&&immersive)assert(r.y==1204&&r.height==12);else if(r.y==0)assert(r.height==(s_reader_fullscreen?80:152));else if(!s_reader_fullscreen&&r.y==152)assert(r.height==24&&r.width==684&&color==UI_GRAY_WHITE);else assert(r.y==(s_reader_fullscreen?1168:1048));++fill_calls;}
 static void ui_reader_background_paint(uint8_t *fb,EpdRect r,bool overlay){(void)fb;(void)r;assert(overlay);}
-/* rc108 的页脚局部刷新走真实脏区计算：提供最小 hl/帧缓冲与几何桩。*/
-/* rc108's footer partial refresh runs the real dirty-region path: minimal hl/framebuffer/geometry stubs.*/
-static size_t test_pages=48,expected_page=74,s_page=36;
-static size_t book_layout_page_count(void){return test_pages;}
-/*rc108 的脏区计算在横排物理缓冲上做四邻域差分：epd 宽高取横排尺寸，旋转映射用真实实现。*/
-/*rc108 computes the dirty region on the landscape physical buffer: landscape epd sizes and the real rotation mapping.*/
-static int epd_width(void){return 1216;}
-static int epd_height(void){return 684;}
-enum {EPD_ROT_LANDSCAPE,EPD_ROT_PORTRAIT,EPD_ROT_INVERTED_LANDSCAPE,EPD_ROT_INVERTED_PORTRAIT};
-static int epd_get_rotation(void){return EPD_ROT_PORTRAIT;}
-static void ui_text_set_system_scale(bool on){(void)on;}
-static uint8_t front_bytes[684*(1216/2)],back_bytes[684*(1216/2)];
-typedef struct {uint8_t *front_fb,*back_fb;} EpdiyHighlevelState;
-static EpdiyHighlevelState test_hl={front_bytes,back_bytes};
-static void lock_draw(void){}
-static void unlock_draw(void){}
-static int64_t esp_timer_get_time(void){return 1550000;}
 static void ui_text_fixed_vc(uint8_t *fb,int x,int y,int px,const char *text,int align,bool inverted){
  (void)fb;assert(y==(s_reader_fullscreen?1180:1060)&&px==21&&!inverted);
- if(x==652){char expected[48];unsigned current=(unsigned)(expected_page<test_pages?expected_page+1:test_pages);
-  snprintf(expected,sizeof(expected),"%u/%u  %u%%",current,(unsigned)test_pages,(unsigned)expected_page);
-  assert(align==EPD_DRAW_ALIGN_RIGHT&&!strcmp(text,expected));}
+ if(x==652){assert(align==EPD_DRAW_ALIGN_RIGHT&&!strcmp(text,"75/100  74%"));}
  else assert(x==32&&align==EPD_DRAW_ALIGN_LEFT&&!strcmp(text,expected_chapter));
  ++text_calls;
 }
 static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int color){
  (void)fb;int width=(s_reader_fullscreen&&immersive)?612:648;
  assert(r.x==((s_reader_fullscreen&&immersive)?36:18)&&r.y==((s_reader_fullscreen&&immersive)?1207:(s_reader_fullscreen?1194:1074))&&r.height==((s_reader_fullscreen&&immersive)?3:6)&&radius==((s_reader_fullscreen&&immersive)?1:3));
- assert(r.width==(color?width:width*(int)expected_page/100));++bar_calls;
+ assert(r.width==(color?width:width*74/100));++bar_calls;
 }
 static enum EpdDrawError reader_present_crop(void *hl,const int *wave,int mode,EpdRect area,bool full){
  (void)hl;assert(wave==&E0470_FOLLOW_WAVEFORM&&mode==MODE_DU&&!full);
@@ -95,34 +84,60 @@ static enum EpdDrawError reader_present_crop(void *hl,const int *wave,int mode,E
 }
 
 static void guard_draw_result(void *hl,enum EpdDrawError result){(void)hl;assert(result==error);++guards;}
-#define update_display_reader_area reader_present_crop
+static size_t s_page=74;
+static void lock_draw(void){}
+static void unlock_draw(void){}
+static void ui_text_set_system_scale(bool scale){assert(!scale);}
 '''
-unit += function('ui_rotate_rect_to_fb', ROOT/'main/ui/ui_kit.c')+'\n'
-for name in ['draw_reader_header','progress_rect','reader_footer_progress', 'draw_reader_footer', 'reader_footer_dirty', 'present_reader_footer', 'draw_reader_metadata', 'reader_metadata_tick','reader_status_visible']:
+for name in ['draw_reader_header','progress_rect','reader_footer_progress']:
+    unit += function(name, source)+'\n'
+if separate_footer:
+    unit += r'''
+static int64_t test_now_ms;
+static int64_t esp_timer_get_time(void){return test_now_ms*1000;}
+// 这里隔离已单测的像素差分，只验证实际页脚绘制与提交状态机。
+// Isolate pixel differencing and exercise the actual footer paint/submission state machine.
+static EpdRect reader_footer_dirty(void *hl){(void)hl;return progress_rect();}
+static enum EpdDrawError update_display_reader_area(void *hl,const int *wave,int mode,EpdRect area,bool full){return reader_present_crop(hl,wave,mode,area,full);}
+'''
+unit += function('reader_current_progress_unsaved', source)+'\n'
+unit += function('draw_reader_footer', source)+'\n'
+unit += function('draw_reader_metadata', source)+'\n'
+if separate_footer:
+    unit += function('present_reader_footer', source)+'\n'
+for name in ['reader_metadata_tick','app_book_status_bar_visible','reader_status_visible']:
     unit += function(name, source)+'\n'
 unit += r'''
 int main(void){
- memset(back_bytes,0xFF,sizeof(back_bytes));/*让页脚区域前后帧全异：脏区=整个 footer*/
- char text[48];reader_footer_progress(text,sizeof(text),74);assert(!strcmp(text,"48/48  74%"));
- test_pages=0;reader_footer_progress(text,sizeof(text),0);assert(!strcmp(text,"0/0  0%"));test_pages=48;
- reader_footer_progress(text,sizeof(text),100);assert(!strcmp(text,"48/48  100%"));
+ uint8_t fb[1]={0};
+ // A failed record for another book or for the resume pointer cannot displace this chapter.
+ s_save_failed=true;
+ for(int full=0;full<2;++full)for(int mode=0;mode<5;++mode){
+  s_reader_fullscreen=full;immersive=false;warnings=warning_ink=0;
+  has_current_progress=mode!=0;current_progress.dirty=mode>=2;current_progress.progress_saved=mode==3;
+  draw_reader_footer(fb,74);
+  assert(warnings==(unsigned)(mode==2||mode==4)&&warning_ink==2*warnings);
+ }
+ has_current_progress=false;s_save_failed=false;warnings=warning_ink=0;
+ s_reader_fullscreen=false;calls=guards=text_calls=bar_calls=fill_calls=0;
+ char text[48];reader_footer_progress(text,sizeof(text),74);assert(!strcmp(text,"75/100  74%"));
+ total_pages=0;reader_footer_progress(text,sizeof(text),0);assert(!strcmp(text,"0/0  0%"));total_pages=100;
+ s_chapter=99;reader_footer_progress(text,sizeof(text),100);assert(!strcmp(text,"100/100  100%"));s_chapter=36;
  s_reader_fullscreen=false;uint8_t none=0;
  for(int style=0;style<2;++style){
   immersive=style;s_reader_favorite=style;text_calls=bar_calls=fill_calls=status_calls=0;title_calls=back_calls=favorite_calls=0;
-  expected_page=74;
   draw_reader_header(&none);draw_reader_metadata(&none,74);
   assert(status_calls==1&&text_calls==2&&bar_calls==2&&fill_calls==3&&reader_status_visible());
   assert(title_calls==1&&back_calls==1&&favorite_calls==1&&ui_reader_body(false,style,24,false).y==(style?16:84));
-  app_ctx_t ctx={.now_ms=1000,.hl=&test_hl,.fb=&none};s_reader_footer_pending=true;s_reader_footer_due_ms=900;
-  expected_page=36;
+  app_ctx_t ctx={.now_ms=1000};s_reader_footer_pending=true;s_reader_footer_due_ms=900;
   assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&!s_reader_footer_pending);
  }
  for(int full=0;full<2;++full){
  s_reader_fullscreen=true;immersive=full;s_reader_footer_pending=false;s_view=READING;calls=guards=text_calls=bar_calls=fill_calls=0;
  assert(reader_status_visible()==!full);status_calls=0;title_calls=back_calls=favorite_calls=0;
- uint8_t fb=0;expected_page=74;draw_reader_metadata(&fb,74);assert(text_calls==(full?0:2)&&bar_calls==2&&fill_calls==(full?1:2)&&status_calls==(full?0:1));
+ uint8_t fb=0;draw_reader_metadata(&fb,74);assert(text_calls==(full?0:2)&&bar_calls==2&&fill_calls==(full?1:2)&&status_calls==(full?0:1));
  assert(ui_reader_body(true,false,24,false).y==84&&ui_reader_header().height==80&&!title_calls&&!back_calls&&!favorite_calls);
- touch_t touch={0};app_ctx_t ctx={.now_ms=100,.touch=&touch,.hl=&test_hl,.fb=&none};expected_page=36;
+ touch_t touch={0};app_ctx_t ctx={.now_ms=100,.touch=&touch};
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&!calls);
  s_reader_footer_pending=true;s_reader_footer_due_ms=900;
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&!calls);
@@ -135,23 +150,32 @@ int main(void){
  }
  ctx.consumed=ctx.request_app=ctx.request_return=ctx.request_menu=touch.touched=s_toolbar=s_clear_confirm=false;
  s_reader_panel=READER_PANEL_NONE;
+ const int before_footer=text_calls;
+ expected_chapter="Next chapter";
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&calls==1&&guards==1&&!s_reader_footer_pending);
+ assert(text_calls==before_footer+(full?0:2));
+ expected_chapter="Chapter name";
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&calls==1);
  s_reader_footer_pending=true;error=EPD_DRAW_OTHER_ERROR;
- assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&s_reader_footer_pending&&s_reader_footer_due_ms==1700);
+#ifdef TEST_SEPARATE_FOOTER
+ test_now_ms=ctx.now_ms;
+#endif
+ assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&s_reader_footer_pending&&s_reader_footer_due_ms==TEST_RETRY_DUE);
  assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&calls==2);
- ctx.now_ms=1700;error=EPD_DRAW_SUCCESS;assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&!s_reader_footer_pending&&calls==3);
+ ctx.now_ms=TEST_RETRY_DUE;error=EPD_DRAW_SUCCESS;assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&!s_reader_footer_pending&&calls==3);
 
  s_reader_footer_pending=true;s_view=SHELF;assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&!s_reader_footer_pending);
  s_view=READING;s_reader_footer_pending=true;s_text=NULL;assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE&&!s_reader_footer_pending);s_text="body";
  }
- puts("PASS: OFF status/chapter/count/percentage with fixed1194/downward6px bar; ON release1207/3px line without text/header or minute overwrite; idle deadline, touch/navigation/panel guards, one FOLLOW DU footer crop, retry and exit cancellation");
+ puts("PASS: OFF status/chapter/page-count/percentage with fixed1194/downward6px bar; ON release1207/3px line without text/header or minute overwrite; idle deadline, touch/navigation/panel guards, one FOLLOW DU footer crop, retry and exit cancellation");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='reader-metadata-') as temporary:
     work=Path(temporary)
     (work/'epdiy.h').write_text('#pragma once\ntypedef struct{int x,y,width,height;}EpdRect;\n')
     (work/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+                    *(['-DTEST_SEPARATE_FOOTER'] if separate_footer else []),
+                    '-DTEST_RETRY_DUE='+str(1050 if separate_footer else 1700),
                     '-DKIIKO_BOARD_METALIO47='+str(int('metalio47' in str(ROOT))),'-I'+str(work),'-I'+str(ROOT/'main/ui'),str(work/'test.c'),'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test')],check=True)

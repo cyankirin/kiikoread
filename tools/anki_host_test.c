@@ -26,7 +26,7 @@
 
 // 存储模块依赖 book_store 的挂载助手；宿主测试恒成功。
 // The store depends on book_store's mount helper; host tests always succeed.
-esp_err_t book_store_ensure_flash(void) { return ESP_OK; }
+esp_err_t book_store_prepare_flash(void) { return ESP_OK; }
 
 #ifdef _WIN32
 #include <direct.h>

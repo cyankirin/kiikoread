@@ -375,7 +375,7 @@ esp_err_t anki_store_import(const char* path, int* out_imported) {
     // / With the TF card present and writable the whole import lands there,
     // leaving internal flash to the system and books.
     const char* root = anki_store_active_root();
-    esp_err_t err = book_store_ensure_flash();
+    esp_err_t err = book_store_prepare_flash();
     if (err != ESP_OK) return err;
     err = ensure_dir_for(root);
     if (err != ESP_OK) return err;
@@ -728,7 +728,7 @@ esp_err_t anki_store_load(int64_t deck_id, anki_deck_t* out) {
 
 esp_err_t anki_store_list(anki_deck_visit_fn visit, void* ctx) {
     if (!visit) return ESP_ERR_INVALID_ARG;
-    esp_err_t err = book_store_ensure_flash();
+    esp_err_t err = book_store_prepare_flash();
     if (err != ESP_OK) return err;
     // 枚举两个根，活动根在前；同 id 只报活动根的那份（去重表只收头校验
     // 通过的 id，损坏副本不占位）。/ Walk both roots, active first; a shared

@@ -1,21 +1,96 @@
 # 版本变更 / Changelog
 
-## Metalio S31 0.3.3-rc114.02 — 2026-11-19
+## S31 0.3.3-rc116 — 2026-11-19
 
-- **S31**：联网 OTA 新增双通道。升级页提供「官方版 / Anki 版」两行入口，各自检查与下载；官方通道发现与当前大版本一致的原版（rc114 → 本机 rc114.0x）时确认页改写为「官方原版可升级」，说明升级将移除 Anki 功能，并提供第三个按钮**「下载 Anki 版固件到 TF 卡」**——把 Anki 通道清单指向的固件流式写入 TF 根目录 `Metalio-S31-update.bin`（先查剩余空间、288 字节镜像头校验、SHA-256 落盘校验、失败删残包），升级原版后经「TF 卡升级」装回。
-- **S31**：设置首页改为两级分组菜单（连接与时间 / 显示 / 个性化功能 / 升级和恢复），索引页列分组、二级页只显示该组各行；移植并包含 pico 侧两级菜单的全部修复（点击行带裁剪防误触发、返回键回索引、分组页不算主页面、拖动阈值放宽），S31 专属行（快充、前光与振动、内存卡恢复、关机睡眠）保留。
-- **全板**：修复「保存当前配置到 TF 卡」失败——阅读记录备份遇到当前固件不认识的旧格式 NVS 记录（或记录超 512 条）时不再整体失败，改为跳过；保存失败提示改为按真实错误码区分（未识别卡 / 内存不足 / 错误码 0x??），不再一律误导为「检查剩余空间」。
-- **S31**: Online OTA gains two channels. The upgrade page lists "Official / Anki build" rows; when the official channel finds a same-base original (rc114 vs local rc114.0x) the confirm page explains the Anki removal and offers a third button to **save the Anki image to the TF card** (`Metalio-S31-update.bin`, free-space check, header + SHA-256 verification) for later restore via the local TF update. The settings home is now a two-level grouped menu carrying all pico fixes while keeping S31-specific rows. Settings backup no longer fails on unrecognized legacy NVS history records (they are skipped), and save errors now name the real cause instead of blaming TF-card space.
+- 优化 TXT/EPUB 章节识别、题头样式、卷页与章节分页，修复章首和段落异常留白。
+- 修复后续页章名显示，保留精排 EPUB 的图片、题头及自带格式。
+- 修复阅读线手势，新增保存格式，开关恢复样式、范围和位置。
+- 优化大书分段加载、插图内存管理与异常开书恢复。
+- 优化阅读进度存储，修复票根及拼贴锁屏的 TXT 封面。
+- 新增设备间设置和阅读资料同步。
+- 优化普通和水波纹翻页、工具栏与目录刷新，减少多余全刷，修复启动重启。
 
-## 刷机站 2026-11-18 — Metalio Anki 版专用刷机页
+## PICO 0.3.3-rc109 / S31 0.3.3-rc115 — 2026-11-19
 
-- **站点**：刷机站迁移至 `https://cyankirin.github.io/kiikoread/`（仓库由 kiikoreader-anki 改名）；`/metalio/` 恢复为**原版固件**（厂长 rc114），新增 `/metalio-anki/` **Anki 版专用刷机页**（含完整校验的网页 USB 刷入、TF 包下载与 OTA feed `metalio-anki-s31-update.json`），两版完全分开、分区兼容可互切。顶部导航直达两台设备的在线刷机页。
-- **Site**: the flasher moved to `https://cyankirin.github.io/kiikoread/`; `/metalio/` serves the **official build** again, and a dedicated `/metalio-anki/` page now flashes the **Anki build** only (verified web-USB install, TF package and its own OTA feed). The two are fully separated and partition-compatible in both directions.
+- 优化 TXT/EPUB 章节识别、题头样式、卷页与章节分页，修复章节首页和段落异常留白；精排 EPUB 优先保留自带格式。
+- 修复后续页章名显示和阅读线手势，新增「保存阅读线格式」。
+- 优化大书分段加载、插图内存管理、异常开书恢复及阅读进度存储。
+- 修复票根及拼贴锁屏的 TXT 封面，新增设备间设置与阅读资料同步。
+- S31 优化普通、水波纹、工具栏与目录刷新，减少重复全刷，修复启动循环重启。
 
-## Metalio S31 0.3.3-rc114.01 — 2026-11-17
+## 本地测试 / Local test — 2026-11-19
 
-- **S31**：新增 Anki 学习页。文件页点击 `.apkg` 卡组包直接导入，首页顶栏新增 Anki 入口；正面/背面复习、填空题、单选与多选题型，错误答案反色，Anki 兼容调度与进度备份恢复。其余功能与 rc114 一致，构建旗标（PIE 像素、文字波纹、37 相阅读面板、设置短动效）与 rc114 发布版相同。Pico 不受影响，保持 `0.3.3-rc108.01`。
-- **S31**: New Anki study page. Tap an `.apkg` deck in Files to import it, or enter from the new home-top Anki pill; front/back review, cloze, single and multiple choice, inverted wrong answers, Anki-compatible scheduling and progress backup/restore. Everything else matches rc114, built with the same experiment flags as the rc114 release. Pico stays at `0.3.3-rc108.01`.
+- 两款机型修复章节首页提前截断正文、底部异常留白；全屏下使用完整正文区域，工具栏显隐保持分页及阅读位置。
+- Both boards fix prematurely shortened chapter-opening pages and unused space below the text. Chapter starts use the complete body, with pagination and source positions retained across toolbar visibility changes.
+- 两款机型修复触摸手势的阅读线开关；新增「保存阅读线格式」，一键恢复已保存的样式、范围和上下位置，支持重启、备份和设备同步。
+- Both boards fix reading-guide gesture toggles and add Save reading guide format. The saved style, span and position survive restarts, backups and device sync.
+
+- 两款机型的章节题头按实际高度加一行正文间距，不再按双行设计框整块留白；无书内样式的空白段不与阅读段距叠加，修正首段、第二段之间异常大空隙，保留原书明确样式。
+- Both boards reserve measured chapter headings plus one body row instead of a fixed two-row canvas. Unstyled source blanks no longer stack with reader paragraph spacing,fixing excessive gaps between opening paragraphs while preserving authored layouts.
+
+- S31阅读水波纹使用四带错相、尾两带合并，纯文字扫描由44拍减至39拍，保留37相GL16完整灰阶与正文局刷。插图40→35拍、背景36→31拍；普通翻页、主页、设置列表及PICO保持原样。
+- S31 reader ripple uses four staggered bands with a paired tail, reducing text scans from44 to39 ticks while retaining all37 GL16 phases and body-only crops. Art40→35,background36→31; ordinary turns,main pages,settings lists andPICO retain their profiles.
+
+- S31纯文字水波纹保持重合黑字和灰边，目标白色在尾部三拍补白、最后一拍保持，整理旧字残影与空白区域。继续37相GL16、39拍，非白目标及普通/插图/背景原表保持。残影与过渡观感待实机验收。
+- S31 text ripple holds overlapping black/grays,reinforces white targets in three tail phases and holds the final phase to settle erased text and blank areas. Keep37-phase GL16 over39 ticks,nonwhite transitions and ordinary/art/background tables; optical acceptance remains pending.
+
+## 本地测试 / Local test — 2026-11-18
+
+- Pico 普通翻页改为整屏推白并重推黑：顶部状态栏、书名与底部章节/进度一起擦白；波形把厂商定稿保持挪到擦白之前，重推黑作为最后一段驱动，减少阳光下黑字发灰。
+- Pico ordinary turns push white and re-drive black across the whole panel, status bar and footer included; the waveform runs the vendor settle holds before the erase and ends on the black re-drive so blacks stay dense in sunlight.
+
+- 两款机型不再给目录、版权、序言等书前资料套章节题头。阅读器生成的卷名居中独占一页，下一章新页；分开的卷号/章号与副题合排，保留原书精排、卷后正文和偏移。页脚在后续页继续显示实际章名，仅有章号时不再显示为空。
+- Both boards exclude front matter from reader heading styles. Reader-generated volume dividers center on a separate page, chapters start afresh, and adjacent number/subtitle blocks compose together while retaining authored layouts, intervening prose and offsets. Continuation-page footers resolve the current chapter and keep number-only labels.
+- 阅读设置里的「全屏沉浸」改名为「关闭上下状态栏」，保留原有开关行为。
+- Rename the reader's immersive toggle to “Hide top and bottom bars” without changing its behavior.
+
+- S31 普通翻页提前灰边的有效驱动，保留完整灰阶与脉冲数量；水波纹只扫描正文，状态栏与进度单独局刷。进入阅读和目录返回正文统一一次黑白全刷，保留首帧灰阶。默认 VCOM 改为 −1500 mV。
+- S31 ordinary turns advance gray-edge drive without reducing gray levels or pulse counts. Ripple scans only the body, with independent local status/progress updates. Reader entry and TOC return use one black/white full refresh with source grays retained. Default VCOM is −1500 mV.
+
+- S31 普通阅读采用 37 相 GL16 差分，水波纹使用完整灰阶与八带逐拍启动；背景和插图使用独立灰阶派生表。阅读工具栏和设置改为局部差分，滑块在自身区域刷新，收起面板后统一文字墨度。保留有效的逐机 VCOM 标定。主页和系统设置列表的刷新保持原样。
+- S31 ordinary reading uses 37-phase GL16 differences, with full-gray ripple launching eight bands one per tick and separate background/illustration derivatives. Reader tools and settings update locally, sliders refresh their own rectangles, and dismissal normalizes text ink. Valid per-device VCOM calibration is retained. Main-page and system-list refresh profiles remain unchanged.
+
+- S31 构建补齐双核 Flash 缓存保护，在另一核报告就绪前暂停分支预测，缓存恢复后再开启，修复启动读取设置时的缓存异常和循环重启。
+- S31 builds guard the parked core's branch predictor before flash cache suspension and restore it after cache resumes, addressing cache panics and reboot loops while loading settings.
+
+## 本地测试 / Local test — 2026-11-17
+
+- 设置「连接与时间」新增设备同步：两台设备进入同一页，一台选发射、一台选接收，扫描后自动选中对端并显示四位配对码；接收端确认后经 ESP-NOW 分片同步排版、阅读进度、书签与已存 WiFi，整段校验通过才写入并重启。
+- Settings → Connection & time gains Device sync: both devices open the page, one sends and the other receives, the first peer is selected automatically and a four-digit pairing code is shown; after the receiver confirms, layout, reading progress, bookmarks and saved WiFi move over ESP-NOW in checked chunks and are applied only after the whole stream validates, then the receiver restarts.
+
+- S31 普通文字翻页使用原厂 GL37 白转中灰序列，空白补白与落字同时进行，补黑与退白重叠，扫描共 49 相。相间预填保留 192 行和 12 ms 节拍下限，发生欠载时清屏恢复并回退供数。水波纹各条带的空白与新字一起刷新。
+- S31 ordinary text turns use vendor GL37 white-to-midgray transitions, driving blank whites alongside text and overlapping black reinforcement with white erasure for 49 phases. Inter-phase prefill retains 192 lines and a 12 ms cadence floor, with panel recovery and fallback on underruns. Ripple bands drive blank whites together with new text.
+
+- S31 目录内翻页、展开和收起卷使用 37 相 GL16 差分。原有周期全刷清残影照常进行。
+- S31 uses 37-phase GL16 differential refresh for TOC paging and volume expansion or collapse. Existing periodic full cleanup still applies.
+
+- 两款机型打开 TXT 或 EPUB 时局刷「正在打开书籍」。精排 EPUB 保留原书章首图片与题头的顺序及对齐，固件题头从新页第二行开始。
+- Both boards show an opening notice before loading TXT or EPUB files. Styled EPUBs preserve the ordering and alignment of chapter artwork and headings. Reader-generated headings start on the second line of a new page.
+
+- S31 恢复较快的普通翻页波形。正文灰边按二维位置分配 4 位灰阶舍入，正立字形直接写入屏幕缓冲，命中预绘缓存时复用正文并只绘一次状态栏。
+- S31 restores the faster ordinary-turn waveform. Body glyphs distribute 4-bit edge rounding spatially, upright glyphs write directly to the framebuffer, and cached turns paint the status row once.
+
+- 两款机型自动加载当前阅读页的 EPUB 插图，按可用内存限制解码。扉页横线随实际题头长度。S31 普通翻页恢复完整灰阶字边，四级灰阶仅用于水波纹试验路径。
+- EPUB illustrations load automatically within a memory budget on both boards. The horizontal flyleaf rule follows the typeset heading. S31 ordinary turns retain full glyph edge grays, with the four-level experiment limited to ripple turns.
+
+- 两款机型的票根和拼贴锁屏读取 TF 已下载的 TXT 封面。拼贴缓存随下载封面变化自动更新。
+- Ticket and collage lockscreens on both boards display downloaded TXT artwork from the TF card. Collage caches follow the downloaded cover identity.
+
+## 本地测试 / Local test — 2026-11-16
+
+- PICO 和 S31 对超长 EPUB XHTML 章节按段解压、排版，翻到边界时加载下一段。保留目录链接和整章进度位置。题头默认大小为 150%。
+- Both boards open long EPUB XHTML chapters in bounded sections and load the next section at the page boundary, retaining navigation and chapter-relative progress. The chapter heading defaults to 150%.
+
+- PICO 与 S31 返回首页时结束中断开书的恢复模式，随后正常加载已选字体。仍跳过中断书的自动续读和封面解析。
+- PICO and S31 leave interrupted-book recovery on navigation and load the selected fonts again. Automatic resume and cover parsing still skip the interrupted book.
+- 逐本阅读进度迁至内置数据分区。读回校验后才释放旧 NVS 条目，TF 阅读资料备份也会包含迁移后的进度。
+- Per-book progress moves to internal data storage. Legacy NVS entries are removed after read-back verification, and TF history backups include migrated progress.
+- PICO 与 S31 的「阅读设置 → 排版 → 章节题头」新增居中短线、左齐细线和章号侧栏，支持 EPUB 横排和竖排，选择会在重启后保留。
+- On PICO and S31, choose Centered, Left rule or Number rail under Reading settings → Layout → Chapter heading. The choice applies to horizontal and vertical EPUB text and persists after restart.
+- TXT 识别到的章名沿用题头样式。EPUB 优先保留书内明确设置的题头格式，无专门格式时使用阅读设置中的样式。
+- Detected TXT headings use the selected heading style. EPUB uses explicitly authored heading formatting when present and falls back to the reader's style.
+- 章节题头用黑色分隔线，选择页并列展示样式示例。Wi‑Fi 空闲两分钟后关闭。状态栏按开关显示 Wi‑Fi 和蓝牙图标。
+- Chapter heading separators are black, and the picker previews each style. Wi-Fi turns off after two idle minutes. The status bar shows enabled Wi-Fi and Bluetooth radios.
 
 ## 小纸 PICO 0.3.3-rc108 / Metalio S31 0.3.3-rc114 — 2026-11-16
 
@@ -185,15 +260,6 @@ Both boards scroll about half a page after a quick flick and clear list ghosting
 - S31新增「快充」设置，默认开启（1.5A），关闭后回到标准1A充电；切换立即生效并保存，重启后保持。该项位于设置「个性化功能」分组，独立一行并带充电闪电图标。
   S31 gains a Fast charge setting, on by default (1.5 A); turning it off returns to standard 1 A charging. The change applies and is saved immediately and persists across restarts. It is its own row in Settings > Personalization with a charging bolt icon.
 
-## 0.3.3-rc104.01 / 2026-11-02
-
-- 合并上游 rc104（Pico `0.3.3-rc104` / Metalio S31 `0.3.3-rc109` 的在线资源），版本号 `0.3.3-rc104.01`。上游改动按新布局落在 Pico 视图（`boards/pico/src/`）与共享 `main/`，本 fork 的 Anki 与字体改动（`app_font_allow_user_choice`、行盒与 descender 度量、控制台只编到 ERROR、PSRAM 不足时暂停首页组件）在合并后全部保留。
-  Merge upstream rc104 (the online assets for Pico `0.3.3-rc104` / Metalio S31 `0.3.3-rc109`) and bump the local version to `0.3.3-rc104.01`. Upstream edits land in the Pico view (`boards/pico/src/`) and the shared `main/`; every Anki and font change of this fork (`app_font_allow_user_choice`, line-box and descender metrics, ERROR-only console logs, home widgets pausing when PSRAM runs short) survives the merge.
-- 新增网页刷机入口 `/anki/`：Chrome/Edge + HTTPS 打开即用，一次写入 bootloader、分区表与应用，默认保留用户数据。manifest 与 bin 由 CI 在部署前现场生成，不入库。
-  New web-flash entry at `/anki/`: open it in Chrome/Edge over HTTPS and it writes bootloader, partition table and app in one go, keeping user data by default. The manifest and binaries are generated in CI right before deployment and are never committed.
-- 分区表布局、刷机四步与 `0x10000` 地址不变；`0.3.3-rc100.02`、`0.3.3-rc102.01`、`0.3.3-rc103.01` 三个镜像继续保留，可随时回退。
-  The partition layout, the four flashing steps and the `0x10000` address are unchanged; the `0.3.3-rc100.02`, `0.3.3-rc102.01` and `0.3.3-rc103.01` images stay available for rollback.
-
 ## Pico 0.3.3-rc104 / Metalio S31 0.3.3-rc109 — 2026-11-01
 
 保留上一正式版Pico rc103与S31 rc108的原版刷机和TF下载入口；网页刷机仍仅kiikoread.com，沿用兼容双槽布局及默认保留设置。
@@ -260,18 +326,6 @@ Retain original Pico rc103/S31 rc108 web/TF entries, kiikoread.com as the sole w
 
 - 裁剪会砍短黑目标饱和段，强光下黑字发淡；新增“保持相之前补压黑”（只写目标黑行，不增加相数），保留末尾 3 相 hold 作黑固定，应用到 GC16/GL16/完整 GL16 与文字翻页表，保持裁剪后的翻页速度。
   Trimming shortens the black-target saturation run and leaves pale ink in strong light; extra darken pulses are inserted just before the trailing hold window (black-target row only, no extra phases), keeping the final three hold phases as the vendor's black fixing. Applied to GC16/GL16/full GL16 and the text-turn table, keeping the trimmed turn speed.
-
-## 0.3.3-rc103.01 / 2026-11-01
-
-- 合并上游 rc103 并接入其多板构建体系：板型由 `cmake/board.cmake` 与 `boards/<板型>/` 决定（`-DKIIKO_BOARD=pico|metalio47`），根目录的 `sdkconfig.defaults`、`partitions.csv`、`partitions_16M.csv` 随之上移到 `boards/pico/`，版本号改由 `boards/pico/board.json` 的 `version` 提供（本版 `0.3.3-rc103.01`）。Anki 与字体改动全部迁移到新体系，包括只在 Pico 编译的 `boards/pico/src/` 覆盖文件。分区表布局与 rc100/rc102 完全一致，刷机四步与 `0x10000` 地址不变。
-  Merge upstream rc103 and adopt its multi-board build: the board is picked by `cmake/board.cmake` and `boards/<board>/` (`-DKIIKO_BOARD=pico|metalio47`), the root `sdkconfig.defaults`, `partitions.csv` and `partitions_16M.csv` move into `boards/pico/`, and the version now comes from `version` in `boards/pico/board.json` (`0.3.3-rc103.01` here). Every Anki and font change is migrated to the new layout, including the Pico-only `boards/pico/src/` overrides. The partition layout matches rc100/rc102 exactly, so the four flashing steps and the `0x10000` address are unchanged.
-- 控制台日志仍只编到 ERROR（配置随之上移到 `boards/pico/sdkconfig.defaults`）：rc103 本身比 rc102 更大，把 WARN 及以下字符串编回来会直接吃掉应用分区余量。
-  Console logs stay compiled at ERROR (the setting moved to `boards/pico/sdkconfig.defaults`): rc103 is already larger than rc102, and compiling the WARN-and-below strings back in would eat the app-partition margin.
-- Anki 行为与 rc102.01 一致：首页顶栏入口、文件页直接打开 `.apkg`、显式选字体解除异常启动的内建锁、行距按真实行盒（上延伸 + 下延伸）度量、PSRAM 不足时暂停首页组件。
-  The Anki feature behaves as on rc102.01: the top-bar entry on Home, opening a `.apkg` straight from the file page, an explicit font pick releasing the abnormal-boot built-in lock, line pitch taken from the real line box (ascent + descent), and home widgets pausing when PSRAM runs short.
-- 刷机步骤与上一版一致；0.3.3-rc102.01 与 0.3.3-rc100.02 的固件继续保留，可随时回退。
-  Flashing steps are unchanged; the 0.3.3-rc102.01 and 0.3.3-rc100.02 images stay available for rollback.
-
 
 ## Pico 0.3.3-rc103 / Metalio S31 0.3.3-rc108 — 2026-10-31
 
@@ -372,26 +426,6 @@ Retain original Pico rc103/S31 rc108 web/TF entries, kiikoread.com as the sole w
 - S31锁屏恢复启动时保留持久化锁定标记，避免门禁前再次复位丢失锁定状态；真实解锁后清理，自动开书仍先消费恢复入口。
 - 两机启动日志补充恢复保护的具体原因位，区分异常复位、未完成启动/开书和NVS失败；不放宽保护或修改记录格式。
 
-## 0.3.3-rc102.01 / 2026-10-29
-
-- 合并上游 rc102（主页切换擦白、柔和差分翻页、液态玻璃书架、英文连字符与 TXT 目录等），版本升到 rc102.01；Anki 学习页的版面与交互保持不变。
-  Merge upstream rc102 (root whitening on main-page switches, soft differential page turns, the liquid-glass shelf, English hyphenation and TXT tables of contents) and bump the version to rc102.01; the Anki study page keeps its layout and interaction.
-- 修复「学几次 Anki 卡组、回首页锁屏就重启」：导入路径每次数组翻倍都把整张旧表丢掉，1375 张卡的真实卡组每导入一次漏 178,816 字节 PSRAM（宿主计数分配器实测：每轮 +9,856 字节 / +6 块，20 轮共 +187,264 字节；修复后每轮都回到 0）。现在扩容会把旧表还回堆。
-  Fix "the device reboots when locking after studying a deck a few times": the import path abandoned the whole old table every time an array doubled, leaking 178,816 bytes of PSRAM per import of the real 1375-card deck (measured on the host with a counting allocator: +9,856 bytes / +6 blocks per round, +187,264 bytes over 20 rounds; every round now returns to zero live bytes). Growth hands the old table back now.
-- 同一轮的导入路径加固：分配失败时不再泄漏半成品模板（`qfmt` 成功、`afmt` 失败的两种 schema 分支都会就地清空并置空指针），故障注入逐点扫描（真实 1375 卡卡组，第 1…2600 次分配依次失败）所有失败点存活字节均为 0、无重复释放。导入/载入的失败日志由 WARN 升为 ERROR —— 设备上只编到 ERROR 级，此前现场看不到导入失败的原因。
-  Hardened the same import path: a failed allocation no longer leaks a half-built template (both schema branches clear and null the pointers when `qfmt` succeeded but `afmt` did not), and a fault-injection sweep over the real 1375-card deck (allocations 1…2600 failing one at a time) ends at zero live bytes on every failure point with no double free. Import/load failure logs moved from WARN to ERROR — the device only compiles up to ERROR, so the reason for a failed import was previously invisible in the field.
-- 修复「重启后字体恢复默认且换不动」：异常启动会把系统字体锁在内建字体上，而设置页或文件页选完字体后紧接着的那次激活又把它换回内建，整次开机换字体都没有反应，要再重启一次才恢复。现在显式选择会解除这把锁并立即生效；字体加载失败不再被永久记为「已拒绝」，内存不足时先回收字形缓存再重试一次，失败原因写进日志。
-  Fix "after the reboot the font is back to the default and cannot be changed": an abnormal boot locked the system face to the built-in one, and the activation right after a pick in Settings or on the file page put it back, so changing the font did nothing for the whole boot and only a second reboot restored it. An explicit pick now releases that lock and takes effect immediately; a failed load is no longer remembered as rejected for good; a memory shortfall reclaims the glyph cache and retries once; the failure reason is logged.
-- Anki 页在锁屏前释放整库（电源键锁屏走锁屏钩子），把 PSRAM 让给锁图、帧缓存与深睡交接；逐张进度在评分时已落盘，因此不丢学习进度，解锁后回到卡组列表。选择题字段清洗的 16KB 临时缓冲改走 PSRAM，不再从内部 RAM 取。
-  The Anki page releases the whole deck before locking (a power-key lock goes through the lock hook), handing its PSRAM to the lock art, the frame cache and the deep-sleep handoff; per-card progress was already persisted on every grade, so no study progress is lost and unlocking returns to the deck list. The choice renderer's 16KB field scratch now comes from PSRAM instead of internal RAM.
-- 新增内存水位日志（ERROR 级，串口可见）：进入学习、退出学习、进入锁屏三处打印 PSRAM 剩余、内部 RAM 剩余与 PSRAM 最大连续块，便于现场判断是否内存耗尽。
-  Added memory-watermark logs (ERROR level, visible on the serial console): study enter, study exit and lock enter print free PSRAM, free internal RAM and the largest free PSRAM block, so memory exhaustion can be told apart in the field.
-- 刷机步骤与上一版一致；0.3.3-rc100.02 的固件继续保留，可随时回退。
-  Flashing steps are unchanged; the 0.3.3-rc100.02 firmware stays available for rollback.
-
-
-
-
 ## Pico 0.3.3-rc102 · 2026-10-29
 
 - 主页面切换补白：来源或目标是书架时八相，其余根页六相；实际Pico事件循环限定一次输出作用域，保留原底栏和整刷优先级。
@@ -457,31 +491,6 @@ Retain original Pico rc103/S31 rc108 web/TF entries, kiikoread.com as the sole w
 
 - 启用原厂 SDK 的交叉签名证书链验证，使官网备用 OTA 可使用已有的现代信任根；不关闭 TLS、主机名或真实证书有效期校验，不加入废弃根证书。
 - 保留 rc98 固定下载；新安装推荐 rc100，GitHub 仍为优先更新源。
-
-
-## 0.3.3-rc100.01 / 2026-10-25
-
-- 同步 rc100 全部变更：小纸 Pico 与 Metalio EINK 4 Plus 分别构建，官网按机型提供刷机、TF 下载及联网 OTA；Pico 漫画图片头测尺寸、时钟样式预览缓存、透明书封缓存及锁屏恢复优化；联网升级优先 GitHub Pages 并启用 SDK 交叉签名证书验证，保留严格 HTTPS、整包校验与回退；历史固定下载不覆盖。
-  Sync all rc100 changes: separate Pico and Metalio EINK 4 Plus builds with per-device flashing, TF download and online OTA on the website; comic image pre-measurement, clock style preview cache, transparent cover cache and lock-screen resume optimisations; GitHub-Pages-first updates with cross-signed certificate verification, keeping strict HTTPS, full-image checks and rollback; historical fixed downloads stay untouched.
-- Anki 修复 TF 双根存储的损坏文件遮蔽：列表仅在文件头校验通过后才把卡组 id 记入去重表，载入时活动根文件损坏会继续尝试另一个根，截断/损坏的 .akd 不再挡住另一个根里同 id 的完好副本。
-  Fix corrupted-file shadowing in the Anki TF dual-root store: the list only records a deck id after its header check passes, and loading falls through to the other root when the active root's file is damaged, so a truncated/corrupt .akd no longer hides a healthy copy of the same deck id on the other root.
-- Anki 卡组列表隐藏 0 卡空卡组：空 Default 等无卡片卡组不再出现在列表里，避免误选；存储层语义不变。
-  Hide 0-card decks in the Anki deck list: empty decks such as a bare Default no longer show up to be picked by mistake; store-layer semantics are unchanged.
-- Anki 超长卡片行上限从 220 提到 400：超长正文不再被静默截断，会话缓冲区随 PSRAM 分配，增量约 3KB，内部 RAM 不受影响。
-  Raise the Anki long-card line cap from 220 to 400: overlong text is no longer silently truncated; the session buffer lives in PSRAM, adding roughly 3KB with no internal-RAM cost.
-- 构建产物额外输出带版本号的 `Read_Pico-<版本>.bin`（如 `Read_Pico-0.3.3-rc100.01.bin`），便于发布与 OTA 核对；原 `Read_Pico.bin` 保持不变。
-  The build now also stages a versioned image `Read_Pico-<version>.bin` (e.g. `Read_Pico-0.3.3-rc100.01.bin`) for release/OTA checks; the original `Read_Pico.bin` stays unchanged.
-
-
-## 0.3.3-rc100.02 / 2026-10-26
-
-- Anki 选择题正面改用与背面同构的专用版面：选项带 A/B/C/D 字母、题型（单选/多选）以【】标在题干前、模板里只写在 `id` 属性上的字母与 `<li class="hidden">placeholder</li>` 这类隐藏条目不再泄漏到正文；背面题干行同样带上题型前缀。
-  The Anki choice-card front now uses the same dedicated layout as the back: options carry A/B/C/D letters, the question type (单选/多选) is prefixed in brackets, and letters that only lived in `id` attributes or hidden items such as `<li class="hidden">placeholder</li>` no longer leak into the text; the back's question line carries the type prefix as well.
-- Anki 选择题背面的强调方案互换：墨水屏上反色白字看不清，现在**正确选项恢复常规黑字**、**错误选项才反色**，「答案：X」行同样保持常规可读；长选项折行时整段都反色（不会只有第一行）；正面与普通卡片行为不变。
-  The Anki choice back swaps which options stand out: inverted white on e-paper is hard to read, so **correct options return to ordinary black ink**, **only the wrong options are inverted**, and the "答案：X" answer statement stays readable as well; a wrapped long option stays inverted on every one of its lines; the front and ordinary cards are unchanged.
-- Anki 学习页按字号与墨水屏分辨率重做排版：行距按字体的真实行盒（上延伸 + 下延伸）度量、并以正文实测墨迹兜底，保证相邻两行的墨迹不重叠（中文不再压字）；每行按「能放就放」排满，不再逐行留白；题干与选项、选项与答案之间用空行分层；选项换行时续行悬挂缩进到 `<字母>. ` 前缀宽度；中文断行遵守避头尾（闭符号不落行首、开符号不落行尾）；正文过长时字号按 2px 步进自动缩小（下限 16px）以控制在三页内。
-  The Anki study page reworks its typography for the font size and the e-paper resolution: the line pitch now comes from the font's real line box (ascent + descent) with the measured ink of the text as a floor, so neighbouring lines can never overlap and Chinese text no longer collides; each line is filled to what actually fits instead of leaving a gap on every line; blank lines layer the question, the options and the answer; an option's continuation lines hang under the width of its `<letter>. ` prefix; Chinese line breaking follows the head and tail rules (a closing mark never starts a line, an opening mark never ends one); and an overlong body shrinks its type in 2px steps (down to a 16px floor) to stay within three pages.
-
 
 
 ## Metalio S31 0.3.3-rc98 · 2026-10-24
@@ -632,60 +641,6 @@ User-visible changes by release; see [README](../README.md) for usage.
   Prefer GitHub Pages OTA metadata/images, retaining website metadata fallback, Range resumes, retries, full verification and inactive-slot protection.
 
 
-## 0.3.3-rc99.04 / 2026-10-23
-
-- 套用瘦身 sdkconfig 释放应用分区空间：日志默认级别与编译上限降到 ERROR（WARN 及以下全部编出，rc99 基线本已降到 WARN 并关闭 ESP_ERR_TO_NAME_LOOKUP 查找表，本轮再收一级），应用分区余量从 rc99.03 的 6.0KB 回升到 34.6KB；行为仅少控制台警告及以下日志与错误码名字符串，刷机验证时如需警告日志可把日志级别调回 WARN。
-  Apply the slimming sdkconfig to free app-partition space: the default log level and compile-time cap drop to ERROR (WARN and below compile out; the rc99 baseline had already dropped to WARN with the ESP_ERR_TO_NAME_LOOKUP table disabled, and this round tightens one more notch), lifting the app-partition margin from 6.0KB on rc99.03 to 34.6KB; the only behaviour change is fewer console warning-and-below logs and no error-code name strings — set the log level back to WARN when you need warnings during flashing validation. The trim (plus the matching partition-table path fix) is recorded in sdkconfig.defaults so a clean build reproduces this margin.
-  日志：日志级别裁剪（及配套的分区表路径修正）已记录于 sdkconfig.defaults，干净构建可复现该余量。
-- Anki 卡组支持从 TF 卡加载/存储：TF 卡在位且可写时导入落到 /sdcard/anki，否则仍写内部闪存 /flash/anki；载入先试活动根、找不到再试另一个根，列表按卡组 id 去重（活动根优先），删除同时清理两个根避免拔卡后幽灵卡组；学习会话在内存里继续进行，导入中途拔卡会明确提示「TF 卡已拔出」。
-  Anki decks now load and store from the TF card: with the card present and writable imports land on /sdcard/anki, otherwise they still go to internal flash /flash/anki; loading tries the active root first then the other, the list dedupes by deck id (active root first), and deletion clears both roots so a pulled card cannot leave ghost decks; study sessions continue in memory, and pulling the card mid-import reports "TF card removed".
-- PSRAM 不足时按需暂停首页组件：可用 PSRAM 低于 512KB 时跳过首页时钟/日历组件绘制并释放可重建的表盘底图，组件区显示「内存紧张，首页组件已暂停」，余量恢复后下一帧自动恢复；「继续阅读」卡与闭环目标区不受影响。
-  Home widgets pause on demand when PSRAM runs low: below 512KB of free PSRAM the clock/calendar widgets are skipped and the rebuildable clock base is released, the widget area shows "Paused: low memory", and they return automatically once the margin recovers; the resume card and closed-loop goal areas are unaffected.
-
-
-## 0.3.3-rc99.03 / 2026-10-23
-
-- Anki 单选/多选卡片背面自动强调正确答案：自动识别「选项字段为连续单字母（A、B、C、D…，至少两个）且另有字段的值是这些选项字母的子集（如 "AC"）」的选择题模型，背面按题干、选项、答案、备注逐行纯文本排版，正确选项与答案行以反色（黑底白字）绘制，墨水屏上清晰醒目；正面渲染与普通卡片行为不变，背面模板里那段只在高亮正确选项的 JavaScript 不再依赖设备执行。
-  The Anki back side now emphasises correct answers on single/multiple-choice cards: choice models are detected automatically when option fields are consecutive single letters (A, B, C, D, …, at least two) and another field's value is a subset of those option letters (e.g. "AC"); the back lays out question, options, answer and note as plain-text lines, drawing correct options and the answer line inverted (white on black) for clarity on e-paper. Front rendering and ordinary cards behave as before, and the back template's answer-highlighting JavaScript no longer needs to run on device.
-
-
-## 0.3.3-rc99.02 / 2026-10-22
-
-- Anki 学习页字体统一跟随「设置」指定的系统字体：学习视图不再切换到阅读字体（此前与设置不一致且缺字），所有视图与系统界面同字体；阅读字体仅用于书页正文。
-  The Anki study view now follows the system font chosen in Settings: the study view no longer switches to the reading face (previously mismatching Settings and dropping glyphs), all views share the system face; the reading face stays book-body only.
-- 卡片折行按绘制同口径测量并修两处溢出隐患：测量与行距改用 ui_text() 实际使用的有效字号，量窄画宽导致的超屏不再出现；截断点对齐 UTF-8 字符边界，不再切断多字节字符；超长无空格串也能在宽度内被切短。
-  Card wrapping now measures at the draw-time metric and fixes two overflow hazards: measurement and line pitch use the effective size ui_text() actually draws with, so lines no longer measure narrow and draw wide off-screen; cuts align to UTF-8 boundaries instead of splitting multi-byte characters; very long no-space runs also wrap within the width.
-
-
-## 0.3.3-rc99.01 / 2026-10-22
-
-- 基于 rc99 移植完整 Anki 功能：新增 Anki 卡组学习页，导入 TF 卡上的 .apkg（或裸 collection.anki2/anki21），在设备上翻面学习并记录复习进度；解析、渲染与调度有宿主测试覆盖。导入与学习均为文本卡片，图片与音频显示占位。
-  Port the full Anki feature onto rc99: an Anki study page imports .apkg (or a bare collection.anki2/anki21) from the TF card, flips through cards on device and records review progress; parsing, rendering and scheduling are covered by host tests. Text cards only; images and audio show placeholders.
-- 文件页可直接点开 .apkg：自动切到 Anki 页并导入该文件；Anki 页本身仍在右下角「功能」菜单第 6 项。完形（cloze）卡片按 Anki 语义修正：正面挖空当前序号、背面揭示答案，其余序号保留原文。
-  The file page now opens .apkg directly, switching to the Anki page and importing it; the page itself also sits in the bottom-right function menu. Cloze cards follow Anki semantics: the active index is blanked on the front and revealed on the back while others keep their text.
-- 联网OTA优先使用GitHub Pages清单与固件下载，官网清单保留备用；保留断点续传、失败重试、完整校验及空闲分区写入保护。
-  Prefer GitHub Pages OTA metadata/images, retaining website metadata fallback, Range resumes, retries, full verification and inactive-slot protection.
-- 修复章节文件名含冒号的 EPUB 打不开：只有路径首段的冒号仍按协议/盘符分隔处理，条目名内部的冒号按普通字符解析。
-  Open EPUBs whose chapter file names contain colons: a first-segment colon still marks a scheme or drive, while one inside an entry name resolves like any other character.
-- 修复长按删除书籍对 books 子目录及 TF 卡其他位置的书籍失效：删除改按已挂载根受理，仍拒绝目录穿越、目录/链接替换与非书籍扩展名。
-  Delete books kept in books subfolders or elsewhere on the card: deletion now accepts any book file under a mounted root while still refusing traversal, directories, links and non-book extensions.
-- 修复「单击开机」偶发需要再按一次：按住稍久被 PMU 记成长按、或按键事件晚于开机握手时，现在都算作那一次按键；双击开机仍停在锁屏等第二次。
-  Stop one-press boot from occasionally asking for a second press: a slightly long hold and a key event that lands after the boot handshake both count as that press, while two-press boot still waits at the lock face.
-- 阅读页不再给没有目录条目的页编造「第 N 节」占位标题：题头与底栏只显示真实目录名或正文题头，没有就留空；按 spine 生成的备用目录仍保留该标签，旧 EPUB 索引缓存自动重建。
-  Drop the invented "第 N 节" label from pages without a TOC entry: the heading and footer show only a real TOC label or body heading, otherwise nothing. Spine-generated spare TOCs keep the label, and old EPUB index caches rebuild.
-- 整页只有一张插图的页面把插图上下居中，不再贴阅读区顶端；图文同页的插图位置不变。
-  Center a lone full-page illustration vertically instead of pinning it to the top of the reading area; pages that mix text and images keep their current placement.
-
-- 设置首页「自动休眠锁屏」下方提供「双击解锁」开关；默认关闭，单击电源键解锁，手动开启后使用双击，深睡唤醒沿用同一选择，锁屏密码验证保持。
-  Place double-press unlock below auto sleep on Settings home: off by default for one press, enable it for two. Deep wake shares the choice and PIN validation remains required.
-- 插图缩放校验缓存所属页与布局，兼容解码失败；缩放期间保持媒体与电源处理，支持安全的旋转和局部铺帧。连续 DU 刷新失败时保留待驱动相位以便重试。
-  Validate image page/layout ownership and decoding failures during zoom; keep media/power services responsive and clip rotated packed blits safely. Failed continuous-DU draws retain phases for retry.
-- 升级版本比较支持 rc 小修订（如 0.3.3-rc99.01），排序为 rc98 < rc98.1 < rc99 < rc99.01 < 正式版；仍拒绝截断、多级后缀与非数字后缀，旧版号与旧清单行为不变。
-  Update ordering accepts rc sub-revisions (e.g. 0.3.3-rc99.01) with rc98 < rc98.1 < rc99 < rc99.01 < stable; truncation, deeper suffixes and non-numeric suffixes stay rejected, and existing versions/manifests behave as before.
-- 延续 rc99 的功能、分区与数据格式，保留用户配置、原密码记录、阅读进度与已导入的 Anki 卡组。
-  Retain rc99 features, partition/data compatibility, user settings, saved credentials, reading progress and imported Anki decks.
-
-
 ## 0.3.3-rc99 / 2026-10-22
 
 - 基于已确认本地版本51e7d8d发布。恢复设置、文件管理及二级页面文字抗锯齿，调整设置列表灰阶刷新，保留头像与底栏灰阶。
@@ -698,21 +653,6 @@ User-visible changes by release; see [README](../README.md) for usage.
   Clean the preceding screen on reader entry and fuse ordinary body/progress output while retaining calibrated gray transitions and prefetch.
 - 固件优先使用GitHub Pages OTA源，保留官网清单备用与下载校验；官网保留原rc98及更早正式版，继续提供USB全量包与TF完整应用升级包。
   Prefer GitHub Pages OTA with website metadata fallback and verification; retain original rc98/older web choices with USB base and complete TF application packages.
-
-## 0.3.3-rc98.1 / 2026-10-22
-
-- 新增 Anki 卡组学习页：导入 TF 卡上的 .apkg（或裸 collection.anki2/anki21），在设备上翻面学习并记录复习进度；解析、渲染与调度有宿主测试覆盖。导入与学习均为文本卡片，图片与音频显示占位。
-  Added an Anki study page: import .apkg (or a bare collection.anki2/anki21) from the TF card, flip through cards on device and record review progress; parsing, rendering and scheduling are covered by host tests. Text cards only; images and audio show placeholders.
-- 文件页可直接点开 .apkg：自动切到 Anki 页并导入该文件；Anki 页本身仍在右下角「功能」菜单第 6 项。完形（cloze）卡片按 Anki 语义修正：正面挖空当前序号、背面揭示答案，其余序号保留原文。
-  The file page now opens .apkg directly, switching to the Anki page and importing it; the page itself also sits in the bottom-right function menu. Cloze cards follow Anki semantics: the active index is blanked on the front and revealed on the back while others keep their text.
-- 联网OTA优先使用GitHub Pages清单与固件下载，官网清单保留备用；保留断点续传、失败重试、完整校验及空闲分区写入保护。
-  Prefer GitHub Pages OTA metadata/images, retaining website metadata fallback, Range resumes, retries, full verification and inactive-slot protection.
-- 升级版本比较支持 rc 小修订（如 0.3.3-rc98.1），排序为 rc98 < rc98.1 < rc99 < 正式版；仍拒绝截断、多级后缀与非数字后缀，旧版号与旧清单行为不变。
-  Update ordering accepts rc sub-revisions (e.g. 0.3.3-rc98.1) with rc98 < rc98.1 < rc99 < stable; truncation, deeper suffixes and non-numeric suffixes stay rejected, and existing versions/manifests behave as before.
-- 延续 rc98 的功能、分区与数据格式，保留用户配置、原密码记录、阅读进度与已导入的 Anki 卡组。
-  Retain rc98 features, partition/data compatibility, user settings, saved credentials, reading progress and imported Anki decks.
-
-
 
 ## 0.3.3-rc98 / 2026-10-21
 

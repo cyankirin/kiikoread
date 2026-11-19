@@ -5,8 +5,8 @@
  * 书源根目录、挂载与容量策略，不包含界面。
  * Book roots, mounting and capacity policy without UI.
  *
- * 冻结：SD 优先；内置存储单文件最多 1 MiB，仅首次使用挂载。
- * Frozen: prefer SD; flash files are limited to 1 MiB and mounted lazily.
+ * 冻结：SD优先，内置书文件最多1MiB；进度存储早期挂载，仅经完整空白校验的逻辑区允许初始化。
+ * Frozen: prefer SD; flash books stay within1MiB. Mount progress early; initialize only a fully verified erased logical data area.
  */
 #pragma once
 
@@ -40,6 +40,8 @@ size_t book_store_file_limit(const book_store_root_t* root);
 uint64_t book_store_free_bytes(const book_store_root_t* root);
 /// 仅查询内置分区是否已挂载，不触发挂载。/ Inspect flash mount state without mounting.
 bool book_store_flash_ready(void);
+/// 挂载用于书籍和阅读历史的内置文件系统。/ Mount internal storage for books and reading history.
+esp_err_t book_store_prepare_flash(void);
 /// 删除已挂载根（书目录、TF 卡或内置 storage）内的普通 TXT/EPUB 书籍，然后清对应进度及 last。
 /// Delete a regular TXT/EPUB book under a mounted root — a book directory, the SD card or internal
 /// storage — then forget its progress and last path. Nested paths are accepted because the shelf
@@ -50,7 +52,6 @@ bool book_store_flash_ready(void);
 /// replacement backup first, restore backup-only files before deletion, and report failures as not removed.
 /// 按需挂载内置存储分区（幂等）；失败不影响可用 SD。卡组存储复用同一挂载。
 /// Mount the internal storage partition on demand (idempotent); failure leaves usable SD alone. Deck storage reuses this mount.
-esp_err_t book_store_ensure_flash(void);
 /// removed 为文件已删或已不存在；此时 NVS 仍可能失败，可再次调用清理。调用方负责关闭句柄及通知版本。
 /// removed means deleted or already absent; NVS may still fail and cleanup can be retried. Caller closes handles and notifies revision.
 esp_err_t book_store_delete(const char* path, bool* removed);

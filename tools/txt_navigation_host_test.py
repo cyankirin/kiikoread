@@ -43,23 +43,16 @@ static void tracked_free(void *p){
 #include "book_txt.c"
 #include "book_source.c"
 void html_text_free(html_text_t *text){(void)text;assert(!"TXT test entered EPUB cleanup");}
-// 上游把索引缓存拆成独立单元，并在 book_source 里改用已 stat 的入口；本探针只验证 TXT 章节
-// 导航，这里把新入口接回上面的缓存桩，EPUB 章节数查询给空实现（TXT 路径不会用到）。
-// Upstream split the index cache into its own unit and moved book_source onto the stat-ed entry.
-// This probe only covers TXT chapter navigation: route the new entry to the stub above and give the
-// EPUB chapter-count query an empty body (the TXT path never reaches it).
-bool book_index_cache_prepare_file(const char*tag_source,const char*tag,uint32_t version,uint64_t size,
-                                   int64_t modified,char*path,size_t cap,book_index_cache_header_t*key){
- (void)size;(void)modified;return book_index_cache_prepare(tag_source,tag,version,path,cap,key);
-}
-uint16_t book_epub_cached_chapter_count(const char*path,uint32_t size,int64_t modified){
- (void)path;(void)size;(void)modified;return 0;
-}
 bool book_index_cache_prepare(const char *source,const char *tag,uint32_t version,char *path,size_t cap,book_index_cache_header_t *key){
  if(disable_cache)return false;
- struct stat st;assert(!stat(source,&st));
+ assert(!strcmp(tag,"txt")&&version==7);struct stat st;assert(!stat(source,&st));
  *key=(book_index_cache_header_t){.magic=123,.version=version,.source_size=(uint32_t)st.st_size,.modified=st.st_mtime,.path_hash=456};
  return (size_t)snprintf(path,cap,"%s.idx",source)<cap;
+}
+bool book_index_cache_prepare_file(const char *source,const char *tag,uint32_t version,
+ uint64_t size,int64_t modified,char *path,size_t cap,book_index_cache_header_t *key){
+ return !strcmp(tag,"txt")&&book_index_cache_prepare(source,tag,version,path,cap,key)&&
+        key->source_size==size&&key->modified==modified;
 }
 FILE *book_index_cache_open_read(const char *path,const book_index_cache_header_t *key){
  FILE *f=fopen(path,"rb");if(!f)return NULL;book_index_cache_header_t found;
@@ -96,6 +89,15 @@ static void verify(const char *path,const char *expected){
    const char *at=skip_space(text.utf8+target);
    size_t prefix=bytes<40?bytes:40;
    assert((size_t)(text.utf8+text.len-at)>=prefix&&!memcmp(at,title,prefix));
+   bool found=false;
+   for(size_t j=0;j<text.count;++j)
+    if(text.blocks[j].offset==target&&text.blocks[j].reader_heading==BOOK_HEADING_TXT)found=true;
+   if(strcspn(text.utf8+target,"\r\n")<=TXT_LINE_BYTES){
+    bool information=strstr(path,"list-only")||!strcmp(title,"简介")||!strcmp(title,"前言")||!strcmp(title,"序言");
+    if(found==information)fprintf(stderr,"HEADING %s %s found=%d information=%d\n",path,title,found,information);
+    assert(found==!information);
+   }
+   free(text.blocks);
    free(text.utf8);
   }
  }
@@ -123,32 +125,11 @@ int main(int argc,char **argv){
  assert(argc==2);FILE *manifest=fopen(argv[1],"r");assert(manifest);
  char path[256],expected[272],last[256]={0};unsigned fixtures=0;
  while(fscanf(manifest,"%255s %271s",path,expected)==2){
-  verify(path,expected);
-  // 上游把章节数摘要缓存接到书架侧：开书时写入，书架先问 book_cached_chapter_count 才读缓存。
-  // 开书已经关掉了文件，所以这里只验证缓存读取真的发生、两次结果一致且非零，不与已关闭的
-  // book_chapter_count() 比较（那读的是关闭后的状态）。
-  // Upstream moved the chapter-count summary behind the shelf: the open writes it and the shelf
-  // asks book_cached_chapter_count first. verify() already closed the book, so assert that the
-  // cached read really happened, is stable and non-zero instead of comparing with the closed book.
-  {struct stat st;assert(!stat(path,&st));unsigned hits=cache_hits;
-   uint16_t cached=book_cached_chapter_count(path,(uint32_t)st.st_size,(int64_t)st.st_mtime);
-   printf("chapter cache: %u chapters, %u reads\n",cached,cache_hits-hits);
-   assert(cache_hits>hits&&cached>0);
-   assert(book_cached_chapter_count(path,(uint32_t)st.st_size,(int64_t)st.st_mtime)==cached);}
+  verify(path,expected);unsigned hits=cache_hits;verify(path,expected);assert(cache_hits>hits);
   char cache[272];snprintf(cache,sizeof(cache),"%s.idx",path);
-  // 上游把章节数摘要的载荷缩成两个计数、不再带校验和字段：载荷里没有可翻转的校验和时跳过这一步，
-  // 后面的截断仍然验证「缓存被改坏后重新扫描」。
-  // Upstream shrank the chapter-summary payload to two counters, so there is no checksum field to
-  // corrupt; skip that step when the payload is too short and keep the truncation case below.
-  struct stat cs;assert(!stat(cache,&cs));
-  const long flip_at=(long)(sizeof(book_index_cache_header_t)+offsetof(txt_cache_payload_t,checksum));
-  if(cs.st_size>flip_at){
-   FILE *f=fopen(cache,"r+b");assert(f&&!fseek(f,flip_at,SEEK_SET));
-   int c=fgetc(f);assert(c!=EOF&&!fseek(f,-1,SEEK_CUR)&&fputc(c^1,f)!=EOF&&!fclose(f));
-   verify(path,expected);
-  }else{
-   printf("chapter cache payload %ld bytes: no checksum field to corrupt\n",(long)cs.st_size);
-  }
+  FILE *f=fopen(cache,"r+b");assert(f&&!fseek(f,sizeof(book_index_cache_header_t)+offsetof(txt_cache_payload_t,checksum),SEEK_SET));
+  int c=fgetc(f);assert(c!=EOF&&!fseek(f,-1,SEEK_CUR)&&fputc(c^1,f)!=EOF&&!fclose(f));
+  verify(path,expected);
   struct stat st;assert(!stat(cache,&st)&&st.st_size>3&&!truncate(cache,st.st_size-3));
   verify(path,expected);strcpy(last,path);++fixtures;
  }
@@ -245,6 +226,10 @@ with tempfile.TemporaryDirectory(prefix='kiiko-txt-nav-') as folder:
         ('front-list', 'Contents\n\nChapter I Beginning\nChapter II End\n\nChapter I Beginning\nactual body\nChapter II End\nactual body\n',
          {'Chapter I Beginning','Chapter II End'},len('Contents\n\nChapter I Beginning\nChapter II End\n\n'.encode())),
         ('list-only', '目录\n第一章 开始\n第二章 结束\n', {'第一章 开始','第二章 结束'},0),
+        ('front-after-title', '作品书名\n作者名字\n目录\n第一章 开始\n第二章 结束\n\n第一章 开始\n实际正文。\n第二章 结束\n实际正文。\n',
+         {'第一章 开始','第二章 结束'},len('作品书名\n作者名字\n目录\n第一章 开始\n第二章 结束\n\n'.encode())),
+        ('single-chapter', '序言里的文字。\r\n\r\n第一章 唯一的一章\r\n正文。\r\n', {'第一章 唯一的一章'},0),
+        ('chinese-numbers', '一、启程\n正文\n\n二、过桥\n正文\n\n三、归来\n正文\n', {'一、启程','二、过桥','三、归来'},0),
     ]
     for name,text,titles,minimum in extra_cases:
         p=t/(name+'.txt');p.write_bytes(text.encode());e=expected_file(p,text,'utf-8',b'',titles,min_offset=minimum);rows.append((p,e))
@@ -269,7 +254,7 @@ with tempfile.TemporaryDirectory(prefix='kiiko-txt-nav-') as folder:
         assert hashlib.sha256(source.read_bytes()).hexdigest()==digest
     header=(ROOT/'main/book/book_epub.h').read_text()
     stubs=[]
-    for m in re.finditer(r'^(?:const char\s*\*|size_t|uint32_t|bool|void|int|esp_err_t)\s*book_epub_\w+\([^;]*\);',header,re.M):
+    for m in re.finditer(r'^(?:const char\s*\*|size_t|uint32_t|uint16_t|bool|void|int|esp_err_t)\s*book_epub_\w+\([^;]*\);',header,re.M):
         proto=m.group()[:-1];ret=proto.split('book_epub_')[0].strip()
         stubs.append(proto+' {'+('' if ret=='void' else 'return 0;')+'}')
     c=t/'test.c';c.write_text(UNIT+'\n'+'\n'.join(stubs))
