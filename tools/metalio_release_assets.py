@@ -85,6 +85,11 @@ def stage_metalio(flash: Path, output: Path) -> None:
         assert old_manifest['version']==old and old_manifest['board']=='metalio47' and old_manifest['builds'][0]['chipFamily']=='ESP32-S31'
         target=output/'metalio/releases'/old;target.mkdir(parents=True,exist_ok=True)
         shutil.copy2(archive/'manifest.json',target/'manifest.json')
+        # 归档 manifest 的固件部件必须回指站点根的扁平镜像，裸 firmware.bin 会让历史版本刷机 404。
+        # The archived manifest's firmware part must point back at the flat site-root image; a bare
+        # firmware.bin makes every historical release 404 on flash.
+        old_parts={part['path'] for part in old_manifest['builds'][0]['parts']}
+        assert old_parts=={'bootloader.bin','partitions.bin','ota_data_initial.bin',f'../../../Metalio-S31-update-{old}.bin'}, old_parts
         payload=(output/entry['bin']).read_bytes()
         assert payload[48:80].split(b'\0')[0].decode()==old and payload[80:112].split(b'\0')[0]==b'Kiikoread_Metalio_S31'
         for name in ('bootloader.bin','partitions.bin','ota_data_initial.bin'):
@@ -183,6 +188,11 @@ def stage_metalio_anki(flash: Path, output: Path) -> None:
         assert old_manifest['version']==old and old_manifest['board']=='metalio47'
         target=output/'metalio-anki/releases'/old;target.mkdir(parents=True,exist_ok=True)
         shutil.copy2(archive/'manifest.json',target/'manifest.json')
+        # 归档 manifest 的固件部件必须回指站点根的扁平镜像，裸 firmware.bin 会让历史版本刷机 404。
+        # The archived manifest's firmware part must point back at the flat site-root image; a bare
+        # firmware.bin makes every historical release 404 on flash.
+        old_parts={part['path'] for part in old_manifest['builds'][0]['parts']}
+        assert old_parts=={'bootloader.bin','partitions.bin','ota_data_initial.bin',f'../../../Metalio-S31-update-{old}.bin'}, old_parts
         payload=(output/entry['bin']).read_bytes()
         assert payload[48:80].split(b'\0')[0].decode()==old and payload[80:112].split(b'\0')[0]==b'Kiikoread_Metalio_S31'
         for name in ('bootloader.bin','partitions.bin','ota_data_initial.bin'):

@@ -34,7 +34,7 @@
           "sha256": "6a5500c826a7957e06233d2a580e8378106ce88a31db2857ccb5333a3c5f84bc"
         },
         {
-          "path": "firmware.bin",
+          "path": "../../../Metalio-S31-update-0.3.3-rc114.01.bin",
           "offset": 65536,
           "size": 5232096,
           "sha256": "958a0654fa945f2e2216260d396932b79e9b2de9c04eeafd21b9b7521f2bf707"
