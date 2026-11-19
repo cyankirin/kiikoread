@@ -41,7 +41,6 @@ void epd_draw_line(int x0,int y0,int x1,int y1,uint8_t color,uint8_t *fb);
 """
 # circle 的定义在 epdiy（不在抽取段）；本测试只对比 guard 缓存像素，空实现即可。
 # circle lives in epdiy, outside the extracted section; the pixel-compare probe needs an empty impl only.
-code+='void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
 for n in ('ui_contrast_gray','ui_read_pixel','ui_acrylic_bw_rect','ui_hairline','draw_frosted'):
  code+=function('main/ui/ui_kit.c',n)
 code+='static void ui_draw_acrylic_guard(uint8_t *fb,EpdRect r){++guard_draws;draw_frosted(fb,r,false); }\n'
@@ -59,6 +58,12 @@ code+=function('main/ui/ui_kit.c','ui_draw_liquid_shelf_rail').replace('void ui_
 code+='static void ui_draw_liquid_shelf_rail(uint8_t *fb,EpdRect r){++guard_draws;liquid_rail(fb,r); }\n'
 code+=function('main/ui/ui_kit.c','ui_rotate_rect_to_fb')
 t=(r/'main/apps/app_book.c').read_text();a=t.index('#define SHELF_GUARD_CACHE_BYTES');b=t.index('static EpdRect row_rect',a);code+=t[a:b]
+# pico 分支的 ui_glass.c 抽取自带 static epd_draw_circle 定义（cx/cy/r/gray 签名）；
+# metalio 分支没有——查拼好的 code 全文，缺定义时才补空实现（签名与声明一致）。
+# The pico branch's ui_glass.c excerpt defines static epd_draw_circle itself; metalio
+# does not — check the assembled code and inject the empty impl only when absent.
+if 'static void epd_draw_circle(' not in code:  # pico: ui_glass excerpt already defines it
+    code+='void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
 code+=r"""
 static void seed(unsigned value){for(unsigned i=0;i<BYTES;++i)frame[i]=(uint8_t)(i*13+value*19);}
 static void reference(EpdRect rect){if(style==6)ui_draw_liquid_shelf_rail(saved,rect);else ui_draw_acrylic_guard(saved,rect);if(fast)ui_acrylic_bw_rect(saved,rect);}
@@ -103,7 +108,8 @@ int main(int argc,char **argv){
 }
 """
 with tempfile.TemporaryDirectory() as d:
- p=Path(d)/'cache.c';p.write_text(code);out=Path(d)/'cache'
+ p=Path(d)/'cache.c';p.write_text(code)
+ out=Path(d)/'cache'
  subprocess.run(['cc','-Dshelf_display_style=app_settings_shelf_style','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-error=misleading-indentation','-Wno-unused-function','-Wno-unused-variable','-O2','-fsanitize=address,undefined','-Imain',str(p),'main/ui/ui_image_dither.c','-lm','-o',str(out)],cwd=r,check=True)
  subprocess.run([str(out)],check=True)
 

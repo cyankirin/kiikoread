@@ -207,6 +207,12 @@ enum EpdDrawError epd_hl_update_area_full(EpdiyHighlevelState* hl, enum EpdDrawM
     last_area = area;
     return draw(hl, mode, temperature, true);
 }
+/* rc116 起 display.c 的 GL16 内边距路径经 padded 调用；本 fixture 不校验该分支细节。*/
+/* Since rc116 one GL16 path routes through the padded call; this fixture does not pin it.*/
+enum EpdDrawError epd_hl_update_area_padded(EpdiyHighlevelState* hl, enum EpdDrawMode mode, int temperature, EpdRect area, int pad_lines, int pad_cols) {
+    (void)pad_lines; (void)pad_cols;
+    return epd_hl_update_area_full(hl, mode, temperature, area);
+}
 // 与 highlevel.c:142 相同：白后缓冲后，强制整屏推目标前缓冲。
 // Match highlevel.c:142: whiten the back buffer, then force a full update from the target front buffer.
 enum EpdDrawError epd_hl_update_screen_from_white(EpdiyHighlevelState* hl, enum EpdDrawMode mode, int temperature) {

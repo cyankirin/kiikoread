@@ -42,6 +42,8 @@ with tempfile.TemporaryDirectory() as folder:
 #define APP_WAKE_PICKUP 2
 #define APP_WAKE_TIMEOUT 3
 #define READ_PICO_PMU_KEY_NONE 0
+EpdRect ui_rotate_rect_to_fb(EpdRect rect);
+void ui_fill_rect_fast(EpdRect rect,uint8_t gray,uint8_t *framebuffer);
 #define pdMS_TO_TICKS(x) (x)
 typedef void *cst836u_handle_t;typedef void *sc7a20h_handle_t;typedef int esp_err_t;
 typedef struct {int unused;} EpdiyHighlevelState;
@@ -103,13 +105,45 @@ enum EpdDrawError {EPD_GOOD=0,EPD_BAD=1};
 static enum EpdDrawError update_display_area_diff_with(void *h,const int *w,int m,EpdRect a){(void)h;(void)w;(void)a;assert(m==MODE_GL16||m==MODE_DU);++pushes;return display_failure?EPD_BAD:EPD_GOOD;}
 static enum EpdDrawError update_display_full(void *h){(void)h;++fulls;return EPD_GOOD;}
 static void guard_draw_result(void *h,enum EpdDrawError result){(void)h;(void)result;}
-'''.replace('FOLDER',str(p))
+'''.replace('FOLDER',str(p).replace('\\','\\\\'))
  # Declarations precede the backdrop stub; state/hit logic comes from the production pad.
  unit=unit.replace('static void ui_pinpad_paint_input(', 'void ui_pinpad_paint_input(').replace('static void ui_pinpad_begin(', 'void ui_pinpad_begin(').replace('static void ui_pinpad_paint(', 'void ui_pinpad_paint(')
  for n in ('ui_pinpad_full','ui_pinpad_entry_area','ui_pinpad_end','ui_pinpad_reset','key_rect','joined','hit_test','ui_pinpad_handle'):
   unit+=function(n,ROOT/'main/ui/ui_pinpad.c')+'\n'
+ # rc117 的 lock_screen 抽取体按分支引用不同符号：metalio 走 ui_fill_rect_fast，
+ # pico 走 pico_boot_has_resume——定义放在抽取之前（兼作声明），并补 UI_LOCK_* 宏
+ # （ui_fill_rect_fast 实现体与抽取体都引用；fixture framebuffer 即 684x1216）。
+ # rc117 lock_screen excerpts reference different symbols per board: metalio uses
+ # ui_fill_rect_fast, pico uses pico_boot_has_resume. Definitions precede the excerpts
+ # (doubling as declarations); UI_LOCK_* macros feed both bodies (684x1216 framebuffer).
+ if '#define UI_LOCK_WIDTH' not in unit:
+  unit+='#define UI_LOCK_WIDTH 684\n#define UI_LOCK_HEIGHT 1216\n'
+ if '#define UI_GRAY_WHITE' not in unit:
+  unit+='#define UI_GRAY_WHITE 0xFF\n#define UI_GRAY_BLACK 0x00\n'
+ if 'void ui_fill_rect_fast(EpdRect rect, uint8_t gray, uint8_t *framebuffer) {' not in unit:
+  unit+=function('ui_fill_rect_fast',ROOT/'main/ui/ui_kit.c')+'\n'
+ if 'EpdRect ui_rotate_rect_to_fb(EpdRect rect) {' not in unit:
+  unit+=function('ui_rotate_rect_to_fb',ROOT/'main/ui/ui_kit.c')+'\n'
+ if 'app_wake_source_t' not in unit:
+  # metalio 的 lock_screen 抽取体引用浅睡唤醒源类型与空闲超时宏（真身在其头文件，
+  # 宿主环境用值等价的最小定义）。/ metalio excerpts reference the wake-source type and
+  # the idle-timeout macro; the host uses minimal value-equivalent definitions.
+  unit+='#undef APP_SLEEP_DEEP\n#undef APP_WAKE_KEY\n#undef APP_WAKE_PICKUP\n#undef APP_WAKE_TIMEOUT\n'
+  unit+='typedef enum{APP_SLEEP_DEEP=0,APP_WAKE_KEY,APP_WAKE_PICKUP,APP_WAKE_TIMEOUT}app_wake_source_t;\n#define APP_LOCK_IDLE_TIMEOUT_MS 60000\n'
+ unit+='int epd_width(void){return 684;}int epd_height(void){return 1216;}int epd_rotated_display_width(void){return 684;}int epd_rotated_display_height(void){return 1216;}\n'
+ if 'pico_boot_has_resume' not in unit:
+  unit+='bool pico_boot_has_resume(void){return false;}\n'
+ if 'void metalio_frontlight(' not in unit:
+  # metalio 的 lock_screen 抽取体调背光；宿主空实现（本测试不校验背光）。
+  # metalio's lock_screen excerpt drives the frontlight; a host no-op is enough here.
+  unit+='void metalio_frontlight(unsigned brightness,unsigned warmth){(void)brightness;(void)warmth;}\n'
+ if 'lock_pin_grace_active' not in unit:
+  # PIN 宽限窗口依赖 pmu/时钟链路；本测试按未激活处理（安全回退即提示本身）。
+  # The PIN grace window leans on pmu/clock chains; treat it as inactive (the safe fallback).
+  unit+='bool lock_pin_grace_active(void){return false;}\n'
  for n in ('checksum','wallpaper_key','lock_screen_restore','lock_screen_save','restore_art','present','present_input','lock_screen_authenticate'):
   unit+=function(n,ROOT/'main/lock_screen.c')+'\n'
+
  unit+=r'''
 static void start(void){idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=0;now=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));add(0,0,0,0);lock_screen_save(framebuffer);}
 int main(void){
@@ -185,5 +219,8 @@ int main(void){
 }
 '''
  (p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-fsanitize=address,undefined','-I'+str(p),'-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/font'),'-I'+str(ROOT/'main'),str(p/'test.c'),str(ROOT/'main/ui/ui_gesture.c'),'-o',str(p/'test')],check=True)
+ # mingw 的 mkdir 单参（POSIX 两参）；win32 注 shim 头，CI Linux 诊断不变。
+ # mingw takes single-arg mkdir; win32 injects a shim header, CI Linux unchanged.
+ shim=p/'kiiko_mkdir_shim.h';shim.write_text('#if defined(_WIN32)\n#include <direct.h>\n#define mkdir(path,mode) _mkdir(path)\n#endif\n')
+ subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-Wno-error=unused-function','-fsanitize=address,undefined','-include',str(shim),'-I'+str(p),'-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/font'),'-I'+str(ROOT/'main'),str(p/'test.c'),str(ROOT/'main/ui/ui_gesture.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

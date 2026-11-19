@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
 """Exercise real S31 panel/root outlets: native midgray pixels must never enter the text quantizer."""
 from pathlib import Path
-import subprocess,tempfile
+import subprocess,sys,tempfile
 from home_cover_cache_host_test import function
 r=Path(__file__).resolve().parents[1]
 fixture=r/'tools/display_host_test.c';u=fixture.read_text().split('int main(void)')[0]
@@ -13,6 +13,21 @@ u=u.replace('bool app_settings_main_fast_refresh(void) {return false;}',
             'bool app_settings_main_fast_refresh(void) {return selected_mode==APP_MAIN_REFRESH_FAST;}')
 for name in ['e0470_update_regions','e0470_page_turn_with_waveform_compact']:
  u=u.replace(function(name,fixture),'')
+u+=r'''
+/* rc117 的 display.c 直接编译链接新依赖：这些符号的真身在 gl37/waveform/settings/du
+   模块里，本测试不校验其行为，仅给可链接的最小实现（返回合法波形/成功）。*/
+/* rc117's display.c links new dependencies directly; this probe does not pin their
+   behaviour, so minimal linkable implementations (valid waveforms / success) suffice.*/
+#include "epd_highlevel.h"
+#include "display_reader_waveform.h"
+const EpdWaveform *display_reader_gray_waveform(display_reader_gray_profile_t profile){(void)profile;return &E0470_WAVEFORM;}
+const EpdWaveform *display_settings_scroll_waveform(void){return &soft_gray;}
+const EpdWaveform *display_settings_scroll_lower_waveform(void){return &soft_gray;}
+const char *app_settings_book_background_path(void){return "";}
+void continuous_du_reset(void){}
+enum EpdDrawError e0470_update_native_area(EpdiyHighlevelState*h,EpdRect area,const EpdWaveform*w){(void)area;(void)w;return draw(h,MODE_GL16,25,false);}
+enum EpdDrawError epd_hl_update_area_full_exact(EpdiyHighlevelState *h, enum EpdDrawMode m, int t, EpdRect a){return epd_hl_update_area_full(h,m,t,a);}
+'''
 u+=r'''
 static int region_calls;static EpdRect region_body;
 enum EpdDrawError e0470_update_regions(EpdiyHighlevelState*h,EpdRect area,EpdRect strong,const EpdWaveform*soft,const EpdWaveform*art,enum EpdDrawMode m){
@@ -69,5 +84,5 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='s31-gray-repair-') as folder:
  t=Path(folder);c=t/'ui.c';c.write_text(u)
  subprocess.run(['python3','tools/metalio_clear_test_fragment.py'],cwd=r,check=True)
- subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-Wl,-dead_strip','-DKIIKO_BOARD_METALIO47=1','-Ibuild/book-tests','-Itools/display_host_stubs','-Icomponents/continuous_du/include','-Icomponents/e0470_page_turn/include','-Imain','-Imain/app',str(c),'main/display.c','-o',str(t/'ui')],cwd=r,check=True)
+ subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*(('-Wl,-dead_strip',) if sys.platform=='darwin' else ('-Wl,--gc-sections',)),'-DKIIKO_BOARD_METALIO47=1','-Ibuild/book-tests','-Itools/display_host_stubs','-Icomponents/continuous_du/include','-Icomponents/e0470_page_turn/include','-Imain','-Imain/app',str(c),'main/display.c','-o',str(t/'ui')],cwd=r,check=True)
  subprocess.run([str(t/'ui')],cwd=r,check=True)

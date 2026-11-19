@@ -176,6 +176,12 @@ enum EpdDrawError epd_hl_update_area_diff_exact(EpdiyHighlevelState *hl, enum Ep
 enum EpdDrawError epd_hl_update_area_full_exact(EpdiyHighlevelState *hl, enum EpdDrawMode mode, int temp, EpdRect area) {
     return epd_hl_update_area_full(hl, mode, temp, area);
 }
+/* rc116 起 display.c 的 GL16 内边距路径经 padded 调用；本 fixture 不校验该分支细节。*/
+/* Since rc116 one GL16 path routes through the padded call; this fixture does not pin it.*/
+enum EpdDrawError epd_hl_update_area_padded(EpdiyHighlevelState *hl, enum EpdDrawMode mode, int temp, EpdRect area, int pad_lines, int pad_cols) {
+    (void)pad_lines; (void)pad_cols;
+    return epd_hl_update_area_full(hl, mode, temp, area);
+}
 enum EpdDrawError epd_hl_update_screen_from_white(EpdiyHighlevelState* hl, enum EpdDrawMode mode, int temperature) {
     memset(hl->back_fb, 255, FB_BYTES);
     return epd_hl_update_screen_full(hl, mode, temperature);
