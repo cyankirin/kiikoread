@@ -10,7 +10,9 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 provided=ROOT/'boards/metalio47/src/components/e0470_epaper_waveform/my_waveform_du14.h'
-assert hashlib.sha256(provided.read_bytes()).hexdigest()=='e6f23bf78b1d466d04f4997768097fd19a0976a32e605291a901b96537d3ff2c'
+# 工作树在 Windows 上是 CRLF，git 对象是 LF：哈希前统一行尾，pin 用 LF 基准值（与 CI/上游一致）。
+# Worktrees on Windows carry CRLF while git objects are LF: normalize line endings before hashing.
+assert hashlib.sha256(provided.read_bytes().replace(b'\r\n', b'\n')).hexdigest()=='cac0efbcb2801114b21b96a1b26d6a1972d0e9f5bb31e67d5049f06e3cc9c4b'
 unit=r'''
 #include <assert.h>
 #include <stdio.h>
