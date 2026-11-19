@@ -61,7 +61,6 @@ static unsigned layout_span=100,reflows,paints,saves,failed_reflows;
 static uint8_t full_pages;
 static const char *app_settings_book_background_path(void){return "";}
 static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}
-static void ticket_count_turn(void){++s_session_turns;}
 
 static void lock_draw(void){assert(!draw_locked);draw_locked=true;}
 static void unlock_draw(void){assert(draw_locked);draw_locked=false;}
@@ -133,7 +132,7 @@ static void book_layout_set_first_line_indent(unsigned em){assert(draw_locked);l
 static void book_layout_set_first_line_indent_adjust(int px){assert(draw_locked);layout_adjustment=px;}
 """
 unit+='static bool s_rc_auto_turning,s_rc_auto_waiting;\nstatic reader_auto_clock_t s_rc_auto;\n'+function('rc_pause_auto',ROOT/'main/apps/book_reader_controls_runtime.inc')+'\n'
-unit += function('ticket_count_turn',ROOT/'main/apps/book_ticket_reader.inc')+'\n'
+unit += "static void ticket_count_turn(void){++s_session_turns;}\n"
 unit += function('apply_reader_indent', BOOK) + '\n'
 for name in ('reader_zoom_reset', 'app_book_request_open', 'app_book_request_open_from_home', 'app_book_request_resume',
              'toggle_reader_fullscreen', 'apply_reader_option', 'reader_turn_chrome', 'turn_page'):
