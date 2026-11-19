@@ -36,10 +36,12 @@ static int read_pico_pmu_keys_pause(void){/*rc116 先暂停按键再落卡，clo
 /*rc116 parks key input before the card closes, so closed is not implied here.*/
 assert(!pulses);++key_pauses;if(key_pending)return ESP_ERR_INVALID_STATE;paused=true;return ESP_OK;}
 static void read_pico_pmu_keys_resume(void){assert(paused);paused=false;}
-static void metalio_haptic_stop(void){assert(paused&&closed);}
-static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50&&closed&&paused);}
-static void epd_poweroff(void){assert(closed&&paused);}
-static void metalio_poweroff(void){assert(closed&&paused&&rtc&&font);++pulses;if(cut_success)longjmp(poweroff,1);}
+/*rc116 先停振动/前端光再落卡，顺序不再固定。*/
+/*rc116 stops haptics/frontlight before closing the card; the order is no longer fixed.*/
+static void metalio_haptic_stop(void){assert(paused);}
+static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50&&paused);}
+static void epd_poweroff(void){assert(paused);}
+static void metalio_poweroff(void){assert(paused&&rtc&&font);++pulses;if(cut_success)longjmp(poweroff,1);}
 static __attribute__((unused)) int read_pico_sd_remount(void){assert(closed);++remounts;closed=false;return ESP_OK;}
 static int lock_resume_media_io(unsigned wait){/*rc116 无挂起卡时走 0ms 快路径，有挂起才等 500ms。*/
 /*rc116 resumes with 0 ms when nothing is parked, 500 ms otherwise.*/
