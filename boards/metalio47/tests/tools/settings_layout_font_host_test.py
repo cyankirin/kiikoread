@@ -42,7 +42,26 @@ enum=s[s.index('typedef enum { SETTINGS_MAIN'):s.index('} settings_page_t;')+len
 # 该切片内含按型号条件编译的段落，抽取后会留下不配对的 #if/#endif，整段剔除。
 # The slice carries board-conditional sections; extracted alone they leave unmatched #if/#endif.
 enum='\n'.join(line for line in enum.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
-macros='\n'.join(re.findall(r'^#define SETTINGS_(?:ROW_H|GROUP_COUNT|INDEX_Y|GROUP_TOP|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M))
+# 条件分支里的第二份枚举同样被收走；同名枚举值只保留首个。
+# A second enum in the #else branch is captured too; keep the first occurrence of each name.
+_seen_enum=set();_enum_items=[]
+for _item in re.split(r',\s*',enum.replace('typedef enum {','',1).replace('} settings_page_t;','')):
+    _item=_item.strip()
+    if not _item: continue
+    _key=_item.split('=')[0].strip()
+    if _key in _seen_enum: continue
+    _seen_enum.add(_key);_enum_items.append(_item)
+enum='typedef enum { '+', '.join(_enum_items)+' } settings_page_t;'
+
+_macro_lines=re.findall(r'^#define SETTINGS_(?:ROW_H|GROUP_COUNT|INDEX_Y|GROUP_TOP|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M)
+# 条件编译的分支会同时被正则收走；同名只保留首个（#if 在 #else 之前，即目标板取值）。
+# Conditional branches are both captured; keep the first definition per name (the #if branch).
+_seen_macros=set();_macros=[]
+for _line in _macro_lines:
+    _name=_line.split()[1]
+    if _name in _seen_macros: continue
+    _seen_macros.add(_name);_macros.append(_line)
+macros='\n'.join(_macros)
 layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static system_font_layout_t system_font_layout(')]
 unit=r'''
 #include <assert.h>
