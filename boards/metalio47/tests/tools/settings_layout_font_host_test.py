@@ -9,6 +9,22 @@ import re, subprocess, tempfile
 
 root=Path(__file__).resolve().parents[1]
 s=(root/'main/apps/app_device_settings.c').read_text()
+# rc116 在设置页里加入了按型号条件编译的段落；先按 S31 求值，再切片，避免切到 #if 中间。
+# rc116 adds board-conditional sections; resolve them for S31 before slicing so cuts never land mid-#if.
+def _resolve_board_ifs(text):
+    out=[];stack=[]
+    for line in text.splitlines():
+        t=line.strip()
+        if t.startswith('#if') and 'KIIKO_BOARD_METALIO47' in t:
+            cond='!' not in t.split('KIIKO_BOARD_METALIO47')[0]
+            stack.append([cond,cond]); continue
+        if t.startswith('#else') and stack:
+            stack[-1][1]=not stack[-1][0]; continue
+        if t.startswith('#endif') and stack and len(stack) and stack[-1] is not None:
+            stack.pop(); continue
+        out.append(line)
+    return '\n'.join(out)
+s=_resolve_board_ifs(s)
 tokens=r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\''
 scan=re.sub(tokens,lambda m:' '*len(m[0]) if m[0].startswith(('//','/*')) else m[0],s)
 def block(start):
@@ -35,23 +51,11 @@ grace=block(s.index('    if(s_page==SETTINGS_LOCK_PIN &&',start))
 main=s[s.index('    if (y<160 || y>=UI_NAV_TOP || ev->x0<36',start):s.index('\nstatic app_redraw_t on_key(',start)].rstrip()
 assert main.endswith('}')
 main=main[:-1]
-# 该切片内含按型号条件编译的段落，抽取后会留下不配对的 #if/#endif，整段剔除。
-# The slice carries board-conditional sections; extracted alone they leave unmatched #if/#endif.
-main='\n'.join(line for line in main.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
+
 enum=s[s.index('typedef enum { SETTINGS_MAIN'):s.index('} settings_page_t;')+len('} settings_page_t;')]
-# 该切片内含按型号条件编译的段落，抽取后会留下不配对的 #if/#endif，整段剔除。
-# The slice carries board-conditional sections; extracted alone they leave unmatched #if/#endif.
-enum='\n'.join(line for line in enum.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
+
 # 条件分支里的第二份枚举同样被收走；同名枚举值只保留首个。
 # A second enum in the #else branch is captured too; keep the first occurrence of each name.
-_seen_enum=set();_enum_items=[]
-for _item in re.split(r',\s*',enum.replace('typedef enum {','',1).replace('} settings_page_t;','')):
-    _item=_item.strip()
-    if not _item: continue
-    _key=_item.split('=')[0].strip()
-    if _key in _seen_enum: continue
-    _seen_enum.add(_key);_enum_items.append(_item)
-enum='typedef enum { '+', '.join(_enum_items)+' } settings_page_t;'
 
 _macro_lines=re.findall(r'^#define SETTINGS_(?:ROW_H|GROUP_COUNT|INDEX_Y|GROUP_TOP|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M)
 # 条件编译的分支会同时被正则收走；同名只保留首个（#if 在 #else 之前，即目标板取值）。
