@@ -139,10 +139,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [pico, metalio47]
-    # 双板同发（用户 2026-11-19 要求）：Pico 与 metalio47 一起构建、一起发布在线刷机与 OTA。
-    # Both boards ship together (user request 2026-11-19): Pico and metalio47 build and publish
-    # the web flasher and OTA feeds in the same run.
+        board: [pico]
+    # 本 fork 只为 Pico 出固件并做门禁（用户 2026-11-03 要求）；metalio47 在 5 MiB 槽下
+    # 已溢出 ~7.4 KB，待裁剪方案确定后再恢复双板构建与发布。
+    # This fork ships only Pico (user request 2026-11-03); the metalio47 image now overflows its
+    # 5 MiB slot by ~7.4 KB, so dual-board builds resume once a trimming plan is decided.
     container: espressif/idf:v6.1
     steps:
       - uses: actions/checkout@v4
