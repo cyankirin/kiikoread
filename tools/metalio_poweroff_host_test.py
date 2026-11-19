@@ -70,7 +70,8 @@ int main(void){
 assert(rtc==1&&book==1&&font==1&&closes==1&&pulses==1&&resumes==1&&!paused&&clock_ms==1000);
  for(unsigned i=1;i<=3;i++){
   reset();failure=i;assert(lock_power_off()!=ESP_OK);
-  assert(!pulses&&!remounts&&!paused&&!closed&&resumes==1);
+  fprintf(stderr,"DBGREL pulses=%d remounts=%d paused=%d closed=%d resumes=%d\n",pulses,remounts,(int)paused,(int)closed,resumes);
+ assert(!pulses&&!remounts&&!paused&&!closed&&resumes==1);
  }
  reset();key_pending=true;assert(lock_power_off()==ESP_ERR_INVALID_STATE);
  assert(key_pending&&!pulses&&remounts==1&&!paused);
