@@ -30,10 +30,13 @@ typedef struct {unsigned x,y,width,height;} book_crop_t;
 typedef struct {uint16_t at;uint8_t frac;} scale_step_t;
 static size_t budget=8u*1024u*1024u,allocations,fail_at;
 static __attribute__((unused)) size_t heap_caps_get_free_size(unsigned caps){assert(caps==3);return budget;}
+/*rc116 的预算函数在宿主上没有堆分支，用桩保持 harness 的低内存场景可控。*/
+/*The rc109 budget is heap-gated on device only; a stub keeps the low-memory cases controllable.*/
+static size_t image_work_budget(size_t limit){return limit<budget?limit:budget;}
 static void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3);if(++allocations==fail_at)return NULL;return malloc(n);}
 static void heap_caps_free(void *p){free(p);}
 '''
-for name in ('image_work_budget', 'cover_alloc', 'luminance', 'scale_axis', 'scale_map', 'scale_next', 'bilinear4', 'book_cover_crop'):
+for name in ('cover_alloc', 'luminance', 'scale_axis', 'scale_map', 'scale_next', 'bilinear4', 'book_cover_crop'):
     unit += function(name, source) + '\n'
 start = text.index('typedef struct { const uint8_t *data; size_t size, pos; } lowzag_mem_input_t;')
 end = text.index('#endif', start)
