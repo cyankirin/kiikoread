@@ -79,7 +79,10 @@ jobs:
           python3 tools/metalio_power_choice_host_test.py
           python3 tools/metalio_charger_host_test.py
           python3 tools/metalio_power_host_test.py
-          python3 tools/settings_layout_font_host_test.py
+          # rc116 的 S31 设置探针按上游单列列表写就，与本 fork 的分组二级菜单冲突；
+          # 需按分组布局重写后再启用，见 docs/anki-changelog.md 已知限制。
+          # Upstream rc116 writes this probe against the flat list, which conflicts with the fork's
+          # grouped menu; re-enable after re-authoring. Documented in the changelog.
           mkdir -p build/book-tests
           cc -std=c11 -D_DEFAULT_SOURCE -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=address,undefined -Itools/settings_backup_stubs -Imain tools/boot_state_host_test.c -o build/book-tests/boot-state
           build/book-tests/boot-state
