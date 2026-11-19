@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
-"""中文：S31/Pico补字逐字节相同、全部旧UI像素不变，以及真实启动画布检查。
-English: S31/Pico supplement identity, unchanged legacy UI pixels and the actual startup canvas check.
+"""中文：两板内嵌资产逐字节一致、补字外置分发一致、旧界面像素不变与启动画布检查。
+English: Byte-identical embedded assets across boards, identical distributed supplement,
+unchanged legacy UI pixels and the actual startup canvas check.
 """
 from pathlib import Path
 import hashlib,json,struct,subprocess,tempfile,zlib
@@ -10,9 +11,26 @@ from home_cover_cache_host_test import function
 R=Path(__file__).resolve().parents[1]
 marker=R/'.kiiko-source-view.json';source=Path(json.loads(marker.read_text())['source']) if marker.exists() else R
 pico=source/'boards/pico/src/main/assets';s31=source/'boards/metalio47/src/main/assets'
-aa=(s31/'ui-hanzi.bin').read_bytes();native=(s31/'builtin.ttf').read_bytes()
-assert aa==(pico/'ui-hanzi.bin').read_bytes() and native==(pico/'builtin.ttf').read_bytes()
+native=(s31/'builtin.ttf').read_bytes()
+# 两板内嵌 TTF 逐字节一致（剥除 name/OS/2/post 后），stb 只读的表保留。
+# Board TTFs stay byte-identical after stripping name/OS/2/post; stb tables remain.
+assert native==(pico/'builtin.ttf').read_bytes()
+assert hashlib.sha256(native).hexdigest()=='bbca2dc72869dedc3a5fe9839b286ff5514cefbbfc3bcbd554f1f78015c489ce'
+tables={native[12+i*16:16+i*16] for i in range(struct.unpack_from('>H',native,4)[0])}
+assert not (tables & {b'name',b'OS/2',b'post'}) and {b'cmap',b'glyf',b'loca',b'head',b'hhea',b'hmtx',b'maxp'}<=tables
+# 内嵌 PIF1 基线（降级路径）两板共用一份，逐字节 pin；板级 PIF4 覆盖副本已移除。
+# The embedded PIF1 fallback baseline is one shared file; byte pin. Board PIF4 overlays are gone.
+embedded=(source/'main/assets/ui-hanzi.bin').read_bytes()
+emagic,ecount,epx,eblock=struct.unpack_from('<4sIII',embedded)
+assert (emagic,ecount,epx,eblock)==(b'PIF1',5637,24,32)
+assert hashlib.sha256(embedded).hexdigest()=='6c1b29d0786b673a6ee8ced773cf48b3b08c837b453219f15ff9e01ee7f0155b'
+assert not (pico/'ui-hanzi.bin').exists() and not (s31/'ui-hanzi.bin').exists()
+# 外置全量 PIF4 分发文件两板共用，逐字节 pin；其旧界面像素展开不变。
+# The distributed external full PIF4 is shared by both boards; byte pin with unchanged legacy pixels.
+distributed=sorted((source/'flash'/'fonts').glob('ui-hanzi-*.bin'));assert len(distributed)==1
+aa=distributed[0].read_bytes()
 magic,count,px,block=struct.unpack_from('<4sIII',aa);assert (magic,count,px,block)==(b'PIF4',6030,24,32)
+assert hashlib.sha256(aa).hexdigest()=='184eea2a747098250b389a589b8244430793a064f837c22a1550f3fca4dd571e'
 chars=struct.unpack_from('<'+'H'*count,aa,16);at=16+count*2
 index=struct.unpack_from('<'+'I'*((count+31)//32+1),aa,at);at+=len(index)*4
 mono=bytearray()
@@ -48,4 +66,4 @@ with tempfile.TemporaryDirectory() as folder:
  p=Path(folder);(p/'test.c').write_text(unit)
  subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-print('PASS: S31/Pico identical PIF4 and native face;7668 characters/all common6500; all6030 legacy UI glyph pixels/metrics unchanged; exact advances/bearings shared')
+print('PASS: boards share identical embedded TTF/PIF1, one distributed PIF4 supplement; 7668 characters/all common6500; all6030 legacy UI glyph pixels/metrics unchanged; exact advances/bearings shared')

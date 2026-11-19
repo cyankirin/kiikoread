@@ -24,6 +24,10 @@ def main():
  o=Options();o.layout_features=[];o.layout_closure=False;o.notdef_outline=True;o.recommended_glyphs=True;o.name_IDs=['*'];o.name_legacy=True
  sub=Subsetter(options=o);sub.populate(unicodes=wanted);sub.subset(f);assert set(f.getBestCmap())==wanted
  for index,value in [(1,'Noto Sans SC'),(2,'Medium'),(4,'Noto Sans SC Medium'),(6,'NotoSansSC-Medium')]:f['name'].setName(value,index,3,1,0x409)
+ # stb_truetype 只读 cmap/glyf/loca/head/hhea/hmtx/maxp；name/OS/2/post 纯占体积。
+ # stb_truetype reads only cmap/glyf/loca/head/hhea/hmtx/maxp; name/OS/2/post are dead weight.
+ for tag in ('name','OS/2','post'):
+  if tag in f:del f[tag]
  a.out.parent.mkdir(parents=True,exist_ok=True);f.save(a.out);f.close()
  print(json.dumps(dict(codepoints=len(wanted),preserved=len(original),added=len(extras-original),bytes=a.out.stat().st_size,sha256=hashlib.sha256(a.out.read_bytes()).hexdigest(),fonttools=version)))
 if __name__=='__main__':main()

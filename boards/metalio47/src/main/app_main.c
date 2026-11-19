@@ -26,6 +26,7 @@ extern const app_desc_t app_onboarding;
 #include "ttf_font.h"
 #include "book_store.h"
 #include "book_progress.h"
+#include "font/ui_hanzi_sync.h"
 #include "esp_system.h"
 #include "read_pico_sd.h"
 #include "freertos/FreeRTOS.h"
@@ -166,6 +167,9 @@ void app_main(void) {
     ESP_LOGI(TAG, "startup reset=%d stack=%u", (int)reset, (unsigned)uxTaskGetStackHighWaterMark(NULL));
     app_settings_init();
     book_progress_prepare_at_boot();
+    // 后台确保外置全量补字；文件有效时不连 WiFi，失败静默保持内嵌降级。
+    // Background sync for the external supplement; no WiFi when valid, silent PIF1 fallback on failure.
+    ui_hanzi_sync_start();
     // 大缓冲/字体之前读取凭据；失败不缓存，后续入口仍可重试。/ Read credentials before large buffers/fonts; retry failed reads later.
     (void)lock_pin_enabled();
     pico_boot_init(reset == ESP_RST_PANIC || reset == ESP_RST_INT_WDT ||

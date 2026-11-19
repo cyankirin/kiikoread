@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
 """Exercise the real detached S31 font loader concurrently with active rasterization."""
 from pathlib import Path
-import os,struct,subprocess,tempfile
+import os,sys,struct,subprocess,tempfile
 from font_hanzi_host_support import font_hanzi_host_sources
 R=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='s31-font-stage-') as folder:
@@ -77,7 +77,12 @@ int main(int argc,char**argv){assert(argc==3);target=argv[1];assert(ttf_font_ope
 '''
  (w/'test.c').write_text(unit)
  flags=['cc','-std=gnu11','-DKIIKO_BOARD_METALIO47=1','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-pthread','-I'+str(w),'-I'+str(R/'main/font'),'-I'+str(R/'main/book'),'-I'+str(R/'main'),'-I'+str(R/'tools/ui_gesture_stubs')]
- subprocess.run(flags+['-Dread=stage_read','-c',str(R/'main/font/ttf_font.c'),'-o',str(w/'font.o')],check=True)
- gc='-Wl,-dead_strip' if os.uname().sysname=='Darwin' else '-Wl,--gc-sections'
- subprocess.run(flags+[str(w/'test.c'),str(w/'font.o'),str(w/'assets.c')]+font_hanzi_host_sources(R,w)+['-lm',gc,'-o',str(w/'test')],check=True)
+ from font_hanzi_host_support import host_compat
+ compat=host_compat(w)['compile']
+ subprocess.run(flags+compat+['-Dread=stage_read','-c',str(R/'main/font/ttf_font.c'),'-o',str(w/'font.o')],check=True)
+ gc='-Wl,-dead_strip' if sys.platform=='darwin' else '-Wl,--gc-sections'
+ (w/'win_stub.c').write_text('#include <fcntl.h>\n'
+  '// mingw 的 open() 默认文本模式；强制二进制。/ Force binary open mode on mingw.\n'
+  'int _fmode=_O_BINARY;\n')
+ subprocess.run(flags+compat+[str(w/'test.c'),str(w/'font.o'),str(w/'assets.c')]+font_hanzi_host_sources(R,w)+host_compat(w)['link']+[str(w/'win_stub.c'),'-lm',gc,'-o',str(w/'test')],check=True)
  subprocess.run([str(w/'test'),str(w/'new.ttf'),str(w/'bad.ttf')],check=True)

@@ -28,6 +28,7 @@ extern const app_desc_t app_onboarding;
 #include "ttf_font.h"
 #include "book_store.h"
 #include "book_progress.h"
+#include "font/ui_hanzi_sync.h"
 #include "esp_system.h"
 #include "read_pico_sd.h"
 #include "freertos/FreeRTOS.h"
@@ -149,6 +150,9 @@ void app_main(void) {
     ESP_LOGI(TAG, "startup reset=%d stack=%u", (int)reset, (unsigned)uxTaskGetStackHighWaterMark(NULL));
     app_settings_init();
     book_progress_prepare_at_boot();
+    // 后台确保外置全量补字；文件有效时不连 WiFi，失败静默保持内嵌降级。
+    // Background sync for the external supplement; no WiFi when valid, silent PIF1 fallback on failure.
+    ui_hanzi_sync_start();
     // 在大缓冲和字体之前读取小型锁屏设置；读取失败不阻塞，之后的检查仍可重试。
     // Read the tiny lock setting before large buffers/fonts; keep failures nonblocking and let subsequent checks retry.
     (void)lock_pin_enabled();

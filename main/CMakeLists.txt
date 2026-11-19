@@ -147,6 +147,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "ui/ui_online_fonts.c"
         "font/ui_font.c"
         "font/ui_hanzi.c"
+        "font/ui_hanzi_sync.c"
         "factory/pmu_selftest.c"
         "factory/vcom_setup.c"
         "factory/debug_panel.c")
@@ -354,6 +355,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "font/app_font_context.c"
         "font/ui_font.c"
         "font/ui_hanzi.c"
+        "font/ui_hanzi_sync.c"
         "factory/pmu_selftest.c"
         "factory/vcom_setup.c")
 # 设置页几乎全是文字与命中测试，Pico 的应用分区又贴着上限，因此只给这一页按体积编译。

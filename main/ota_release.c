@@ -78,6 +78,10 @@ bool pico_release_url_valid(const char *url) {
         if (!strncmp(url, prefixes[i], n)) { name = url + n; break; }
     }
     if (!name) return false;
+    // 中文：补字等派生资源允许固定的一级 fonts/ 子目录，其余规则一律不变。
+    // English: Derived assets such as the Han supplement may use the single fixed fonts/
+    //          level; every other rule stands.
+    if (!strncmp(name, "fonts/", 6)) name += 6;
     if (!*name || strstr(name, "..") || strchr(name, '/') || strchr(name, '\\')) return false;
     for (const char *p = name; *p; ++p)
         if (!isalnum((unsigned char)*p) && *p != '-' && *p != '_' && *p != '.') return false;

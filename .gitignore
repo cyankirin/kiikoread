@@ -30,8 +30,12 @@ tools/fonts/
 /ChillDuanSansVF.ttf
 tools/buzzer_score_wav
 # Full fonts are local test data; only the built-in subset is distributed.
+# 外置全量补字是站点分发资产，按版本名入库；目录其余内容仍不入库。
+# The external full supplement is a site-distributed asset tracked per version name;
+# other contents of the directory stay untracked.
 /sdcard/fonts/
-/flash/fonts/
+/flash/fonts/*
+!/flash/fonts/ui-hanzi-*.bin
 /flash/sdcard/fonts/
 /flash/read-pico-fonts.zip
 /flash-backups/
@@ -53,6 +57,8 @@ tools/buzzer_score_wav
 !/flash/bootloader.bin
 !/flash/partitions.bin
 !/flash/firmware.bin
+# 外置全量补字分发文件（按版本名）。/ Distributed full-supplement files, version-pinned.
+!/flash/fonts/ui-hanzi-*.bin
 !/flash/ota_data_initial.bin
 !/flash/Pico-update*.bin
 # Anki 专用页的历史版本归档（引导/分区/OTA 数据与官方 metalio 归档同源）

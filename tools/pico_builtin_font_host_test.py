@@ -4,19 +4,22 @@
 English: Verify ordinary-book coverage and pixel/metric identity of every original outline.
 """
 from pathlib import Path
-import ctypes,hashlib,json,struct,subprocess,tempfile
+import ctypes,hashlib,json,shutil,struct,subprocess,sys,tempfile
 from font_hanzi_host_support import font_codepoints
 ROOT=Path(__file__).resolve().parents[1]
 marker=ROOT/'.kiiko-source-view.json';SOURCE=Path(json.loads(marker.read_text())['source']) if marker.exists() else ROOT
 baseline=(SOURCE/'main/assets/builtin.ttf').read_bytes()
 current_path=ROOT/'main/assets/builtin.ttf' if marker.exists() else ROOT/'boards/pico/src/main/assets/builtin.ttf'
 current=current_path.read_bytes();old=font_codepoints(baseline);new=font_codepoints(current);assert old<=new
-hanzi=(ROOT/'main/assets/ui-hanzi.bin' if marker.exists() else ROOT/'boards/pico/src/main/assets/ui-hanzi.bin').read_bytes();count=struct.unpack_from('<I',hanzi,4)[0];supplement=set(struct.unpack_from('<'+'H'*count,hanzi,16));covered=new|supplement
+# 补字已外置：覆盖率按 flash/fonts/ 分发的全量 PIF4 计算。/ Supplement is external: coverage uses the distributed full PIF4.
+distributed=sorted((SOURCE/'flash'/'fonts').glob('ui-hanzi-*.bin'));assert len(distributed)==1
+hanzi=distributed[0].read_bytes();count=struct.unpack_from('<I',hanzi,4)[0];supplement=set(struct.unpack_from('<'+'H'*count,hanzi,16));covered=new|supplement
 read=lambda path:{int(line.split('#',1)[0].strip(),16) for line in path.read_text().splitlines() if line.split('#',1)[0].strip()}
 common=read(ROOT/'tools/fixtures/reader-common-6500.txt');assert len(common)==6500 and common<=covered
 for filename in ['reader_extra_hanzi.txt','reader_extra_outlines.txt']:assert read(ROOT/'main/font'/filename)<=covered
 assert all(ord(ch) in covered for ch in '《》‘’『』【】①②⑩ⅠⅡⅢāáǎàéöü喆玥珺璟彧祎禛堃芃赟𠳐𥻗𬉼')
-with tempfile.TemporaryDirectory(prefix='pico-font-core-') as d:
+d=Path(tempfile.mkdtemp(prefix='pico-font-core-'))
+try:
  d=Path(d);c=d/'core.c';c.write_text('''#include <stdint.h>
 #include <math.h>
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -37,4 +40,7 @@ int render(uint32_t cp,int px,int*m,uint8_t*out){int g=stbtt_FindGlyphIndex(&f,c
    result[px]=digest.hexdigest()
   snapshots.append(result)
  assert snapshots[0]==snapshots[1],snapshots
+ # Windows 下释放动态库后临时目录才能清理。/ Windows needs the shared library released before temp cleanup.
+
+finally:shutil.rmtree(d,ignore_errors=True)  # Windows 需库卸载后才可删；失败仅留下临时文件。/ Windows cannot delete a loaded .dylib; leftovers are tolerated.
 print(f'PASS: {len(covered)} embedded characters, all6500 common standardized Han, {len(covered-(old|supplement))} native-only additions; all{len(old)} original outlines/advances/bearings pixel-identical at12/24/43/72/160px; sparse native non-BMP coverage')

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # 中文：标题使用真实活动TTF，检查原字号、文件句柄、缓存复用和字库资产不变。
 # English: Exercise real active TTF titles, original sizes, file handles, cache reuse and unchanged font assets.
-import os
+import os,sys
 import struct
 import subprocess
 import tempfile
@@ -254,10 +254,35 @@ int main(int argc,char **argv){
  puts("PASS: actual imported system/reader TTF at 32/40/48px, direct raster identity, five stroke levels with native normal identity and fixed advances, English word-space raster alignment/bounded expansion, single file/face, bounded warm cache and no duplicate font load");
 }
 '''
+    # Windows mingw 保留全部未引用段：以独立源文件提供可链接的显示/贴图桩并强制
+    # 二进制 open 模式；CI 的 gc-sections 会丢弃这些路径，不参与链接。
+    # Windows mingw keeps every unreferenced section: link a standalone stub source with
+    # display/mapping stubs and binary open mode; CI gc-sections drops these paths.
+    win_stubs=work / 'win_stubs.c'
+    win_stubs.write_text(
+        '#include <stdint.h>\n#include <stdbool.h>\n#include <fcntl.h>\n'
+        'typedef struct { int x, y, width, height; } EpdRect;\n'
+        'int _fmode=_O_BINARY;\n'
+        'enum EpdRotation { EPD_ROT_LANDSCAPE, EPD_ROT_PORTRAIT, EPD_ROT_INVERTED_LANDSCAPE, EPD_ROT_INVERTED_PORTRAIT };\n'
+        'enum EpdRotation epd_get_rotation(void){return EPD_ROT_LANDSCAPE;}\n'
+        'static int stub_w,stub_h;int epd_width(void){return stub_w;}int epd_height(void){return stub_h;}\n'
+        'static int stub_rw,stub_rh;\n'
+        'int epd_rotated_display_width(void){return stub_rw;}int epd_rotated_display_height(void){return stub_rh;}\n'
+        'uint8_t epd_get_pixel(int x,int y,int width,int height,const uint8_t *fb){(void)x;(void)y;(void)width;(void)height;(void)fb;return 15;}\n'
+        'void epd_draw_line(int x0,int y0,int x1,int y1,uint8_t color,uint8_t *fb){(void)x0;(void)y0;(void)x1;(void)y1;(void)color;(void)fb;}\n'
+        'void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
+        'void epd_fill_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}\n'
+        'void epd_fill_circle_helper(int x,int y,int radius,int corners,int delta,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)corners;(void)delta;(void)color;(void)fb;}\n'
+        'void epd_draw_rotated_image(EpdRect rect,const uint8_t *image,uint8_t *fb){(void)rect;(void)image;(void)fb;}\n'
+        'int dm_encode(const char*text,uint8_t*modules,int*dim){(void)text;(void)modules;(void)dim;return 0;}\n'
+        'bool ui_glass_panel(uint8_t *fb,EpdRect rect,int radius,int white,int refract){(void)fb;(void)rect;(void)radius;(void)white;(void)refract;return false;}\n'
+        'uint8_t ui_image_dither_bw(uint8_t gray,int x,int y){(void)x;(void)y;return gray;}\n'
+        'uint8_t ui_image_dither_acrylic_bw(uint8_t gray,int x,int y){(void)x;(void)y;return gray;}\n'
+        'int ui_font_ascender_px(int px){(void)px;return 0;}\n')
     helper='static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}'+'\n'+function('draw_reading_font_name',ROOT/'main/apps/app_book.c')+'\n'
     for name in ('one_line','toc_title'):
         helper += function(name,ROOT/'main/apps/book_toc.c')+'\n'
-    unit=unit.replace('int main(int argc,char **argv){',helper+'int main(int argc,char **argv){')
+    unit=unit.replace('int main(int argc,char **argv){',helper+'\nint main(int argc,char **argv){')
     # Pico没有S31专用的标题宽度包装；其余真实字体与排版检查仍完整执行。
     # Pico has no S31-only title-width wrapper; retain all real-font/raster checks.
     if 'int ui_text_title_width_px(' not in (ROOT / 'main/ui/ui_kit.c').read_text():
@@ -267,9 +292,11 @@ int main(int argc,char **argv){
              '-Wno-unused-variable', '-fsanitize=address,undefined', '-ffunction-sections', '-fdata-sections',
              '-I' + str(work), '-I' + str(ROOT / 'main/font'), '-I' + str(ROOT / 'main/ui'),
              '-I' + str(ROOT / 'main'), '-I' + str(ROOT / 'tools/ui_gesture_stubs')]
-    subprocess.run(flags + ['-Dopen=title_test_open', '-Dclose=title_test_close', '-c',
+    from font_hanzi_host_support import host_compat
+    compat = host_compat(work)['compile']
+    subprocess.run(flags + compat + ['-Dopen=title_test_open', '-Dclose=title_test_close', '-c',
                             str(ROOT / 'main/font/ttf_font.c'), '-o', str(work / 'ttf.o')], check=True)
-    gc = '-Wl,-dead_strip' if os.uname().sysname == 'Darwin' else '-Wl,--gc-sections'
-    subprocess.run(flags +font_hanzi_host_sources(ROOT,work)+ [str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
+    gc = '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections'
+    subprocess.run(flags + compat + font_hanzi_host_sources(ROOT,work)+ host_compat(work)['link'] + [str(win_stubs), str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
                             str(ROOT / 'main/ui/ui_kit.c'), '-lm', gc, '-o', str(work / 'test')], check=True)
     subprocess.run([str(work / 'test'), str(work / 'system.ttf'), str(work / 'reader.ttf')], check=True)

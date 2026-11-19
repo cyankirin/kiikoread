@@ -2,7 +2,35 @@
 """Link the shipped Han decoder and bytes into native-font host regressions."""
 from pathlib import Path
 
+def host_compat(work: Path) -> dict:
+    """Windows mingw lacks strlcpy/strlcat: inject a prototype header per compile and link a
+    shim. CI/Linux/macOS behaviour is unchanged. Returns {'compile': [...], 'link': [...]}."""
+    import sys
+    if sys.platform != 'win32':
+        return {'compile': [], 'link': []}
+    work = Path(work)
+    header = work / 'kiiko_strlcpy.h'
+    header.write_text(
+        '#pragma once\n#include <stddef.h>\n'
+        'size_t kiiko_strlcpy(char *dst, const char *src, size_t n);\n'
+        'size_t kiiko_strlcat(char *dst, const char *src, size_t n);\n'
+        '#define strlcpy kiiko_strlcpy\n#define strlcat kiiko_strlcat\n')
+    src = work / 'kiiko_strlcpy.c'
+    src.write_text(
+        '#include <string.h>\n'
+        'size_t kiiko_strlcpy(char *dst, const char *src, size_t n) {\n'
+        ' size_t len = 0; if (n) { while (src[len] && len + 1 < n) { dst[len] = src[len]; ++len; } dst[len] = 0; }\n'
+        ' while (src[len]) { ++len; } return len; }\n'
+        'size_t kiiko_strlcat(char *dst, const char *src, size_t n) {\n'
+        ' size_t len = 0; while (len < n && dst[len]) ++len;\n'
+        ' if (len == n) { while (src[len]) { ++len; } return len; }\n'
+        ' size_t i = 0; while (src[i] && len + i + 1 < n) { dst[len + i] = src[i]; ++i; }\n'
+        ' dst[len + i] = 0; return len + strlen(src); }\n')
+    # gcc16 on mingw over-warns on existing snprintf patterns; non-fatal here only.
+    return {'compile': ['-include', str(header), '-Wno-error=format-truncation'], 'link': [str(src)]}
+
 def font_hanzi_host_sources(root: Path, work: Path) -> list[str]:
+
     name='ui-hanzi.bin'
     symbol='_binary_ui_hanzi_bin'
     data=(root/'main/assets'/name).read_bytes()

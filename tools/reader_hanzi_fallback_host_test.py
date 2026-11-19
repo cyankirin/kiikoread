@@ -3,7 +3,7 @@
 """Verify the real reader against every GB2312 Han, including cold metrics and missing imported glyphs."""
 from pathlib import Path
 import json,os,struct,subprocess,tempfile,sys,zlib,hashlib
-from font_hanzi_host_support import font_hanzi_host_sources,subset_without_xing
+from font_hanzi_host_support import font_hanzi_host_sources,subset_without_xing,host_compat,host_compat
 ROOT=Path(__file__).resolve().parents[1]
 AA_MODE=int('#include "ui_hanzi_aa_scale.h"' in (ROOT/'main/font/ttf_font.c').read_text())
 chars=[]
@@ -48,6 +48,13 @@ size_t heap_caps_get_largest_free_block(unsigned caps);
    for p in range(offset,offset+length-3,4):
     advance=u16(p);struct.pack_into('>H',imported,p,advance+advance//4)
  (w/'imported.ttf').write_bytes(imported)
+ # 中文：ink/像素 pin 按 PIF4 抗锯齿数据校准（CI 在板级测试视图中嵌 PIF4）。宿主运行时
+ #       把外置分发文件注入 UI_HANZI_FLASH_FONT_PATH，等价复现生产装载路径。
+ # English: ink/pixel pins are calibrated on PIF4 AA data (CI embeds PIF4 in board views).
+ #       Stage the distributed file into UI_HANZI_FLASH_FONT_PATH to reproduce production loading.
+ distributed=sorted((ROOT/'flash'/'fonts').glob('ui-hanzi-*.bin'));assert len(distributed)==1
+ (w/'font_path.h').write_text('#define UI_HANZI_FLASH_FONT_PATH "%s"\n'%((w/'ui-hanzi.bin').as_posix()))
+ (w/'ui-hanzi.bin').write_bytes(distributed[0].read_bytes())
  unit=r'''
 #define TEST_AA AA_MODE
 #include "ttf_font.c"
@@ -94,7 +101,9 @@ static void native_pixels(uint32_t cp,int px){
 }
 int main(int argc,char**argv){
  assert((argc==2||argc==3)&&ttf_font_open_builtin()==ESP_OK&&ttf_font_is_builtin());
- int native_wen=ttf_text_width_px(48,"文"),native_xing=ttf_text_width_px(48,"行");
+ // 外置补字首次查找会一次性装载索引；先预热再进入逐字分配断言。/ The first external lookup
+ // loads the index once; warm up before the per-character allocation assertions.
+ ui_hanzi_has(0x4e07);int native_wen=ttf_text_width_px(48,"文"),native_xing=ttf_text_width_px(48,"行");
  ui_hanzi_cache_t reference={0};uint32_t sample=0;
  for(unsigned i=0;i<sizeof(corpus)/sizeof(corpus[0]);++i){
   uint32_t cp=corpus[i];char text[5];utf8(cp,text);
@@ -211,11 +220,19 @@ int main(int argc,char**argv){
  unit=unit.replace('QUALITY_SIZES',','.join(map(str,quality['sizes'])) if quality else '0')
  unit=unit.replace('QUALITY_ROWS',','.join('{'+str(row['cp'])+',{'+','.join(map(str,row['ink']))+'}}' for row in quality['glyphs']) if quality else '{0,{0}}')
  (w/'test.c').write_text(unit)
- flags=['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-I'+str(w),'-I'+str(ROOT/'main/font'),'-I'+str(ROOT/'main/book'),'-I'+str(ROOT/'main'),'-I'+str(ROOT/'tools/ui_gesture_stubs')]
- gc='-Wl,-dead_strip' if os.uname().sysname=='Darwin' else '-Wl,--gc-sections'
+ flags=['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-I'+str(w),'-I'+str(ROOT/'main/font'),'-I'+str(ROOT/'main/book'),'-I'+str(ROOT/'main'),'-I'+str(ROOT/'tools/ui_gesture_stubs'),'-include',str(w/'font_path.h')]
+ gc='-Wl,-dead_strip' if sys.platform=='darwin' else '-Wl,--gc-sections'
  # ESP-IDF permits free(heap_caps_malloc()); the tracking host allocator models that in these objects.
  objects=[]
+ compat=host_compat(w)['compile']
+ # Windows mingw 保留未引用的绘制段，需要一个可链接的填充桩；CI gc-sections 会丢弃。
+ # Windows mingw keeps unreferenced draw sections; CI gc-sections drops them.
+ stub=w/'win_stub.c';stub.write_text('#include <stdint.h>\n#include <fcntl.h>\n'
+  '// mingw 的 open() 默认文本模式；强制二进制，避免 CRLF 破坏 TTF 读取。/ mingw open() defaults to\n'
+  '// text mode; force binary so CRLF translation cannot corrupt TTF reads.\n'
+  'int _fmode=_O_BINARY;\n'
+  'void epd_fill_rect(int x0,int y0,int x1,int y1,uint8_t c,uint8_t *fb){(void)x0;(void)y0;(void)x1;(void)y1;(void)c;(void)fb;}\n')
  for name in ('book_layout','html_text'):
-  obj=w/(name+'.o');subprocess.run(flags+['-Dfree=heap_caps_free','-c',str(ROOT/'main/book'/(name+'.c')),'-o',str(obj)],check=True);objects.append(str(obj))
- subprocess.run(flags+font_hanzi_host_sources(ROOT,w)+[str(w/'test.c'),str(w/'assets.c'),*objects,'-lm',gc,'-o',str(w/'test')],check=True)
- subprocess.run([str(w/'test'),str(w/'imported.ttf')]+([os.environ['KIIKO_FONT_PREVIEW']] if os.environ.get('KIIKO_FONT_PREVIEW') else []),check=True)
+  obj=w/(name+'.o');subprocess.run(flags+compat+['-Dfree=heap_caps_free','-c',str(ROOT/'main/book'/(name+'.c')),'-o',str(obj)],check=True);objects.append(str(obj))
+ subprocess.run(flags+compat+font_hanzi_host_sources(ROOT,w)+host_compat(w)['link']+[str(w/'test.c'),str(w/'assets.c'),*objects,str(stub),'-lm',gc,'-o',str(w/'test')],check=True)
+ subprocess.run([str(w/'test'),(w/'imported.ttf').as_posix()]+([os.environ['KIIKO_FONT_PREVIEW']] if os.environ.get('KIIKO_FONT_PREVIEW') else []),check=True)

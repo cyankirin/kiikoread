@@ -43,6 +43,12 @@ int main(void) {
  assert(!pico_release_url_valid("https://cyankirin.github.io/other/Pico-anki.bin"));
  assert(!pico_release_url_valid("https://github.com/cyankirin/kiikoread/releases/download/x/y.bin"));
  assert(!pico_release_url_valid("http://cyankirin.github.io/kiikoread/Pico-anki.bin"));
+ // 派生资源唯一开放的子目录是一级 fonts/，其余规则照旧。/ fonts/ is the only opened level for derived assets.
+ assert(pico_release_url_valid("https://cyankirin.github.io/kiikoread/fonts/ui-hanzi-0.3.3-rc117.01.bin"));
+ assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoread/fonts/sub/dir.bin"));
+ assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoread/fonts/.bin"));
+ assert(!pico_release_url_valid("https://cyankirin.github.io/kiikoread/fonts/ui-hanzi.tar"));
+ assert(!pico_release_url_valid("http://cyankirin.github.io/kiikoread/fonts/ui-hanzi-0.3.3-rc117.01.bin"));
  assert(strstr(PICO_OTA_ANKI_FEED_URL, "cyankirin.github.io/kiikoread/") != NULL);
  // 站点产出的 Anki 清单形状必须能被设备解析。/ The site's Anki manifest shape parses on the device.
  char anki[2048];
