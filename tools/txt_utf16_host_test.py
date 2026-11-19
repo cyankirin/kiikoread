@@ -47,7 +47,7 @@ FILE *book_index_cache_open_read(const char *path,const book_index_cache_header_
  FILE *f=fopen(path,"rb");if(!f)return NULL;book_index_cache_header_t found;
  if(fread(&found,1,sizeof(found),f)!=sizeof(found)||found.magic!=key->magic||found.version!=key->version||
     found.source_size!=key->source_size||found.modified!=key->modified||found.path_hash!=key->path_hash){
-   fprintf(stderr,"DBGCACHE path=%s magic=%d/%d ver=%u/%u size=%u/%u mod=%lld/%lld hash=%d/%d\n",path,found.magic,key->magic,found.version,key->version,found.source_size,key->source_size,(long long)found.modified,(long long)key->modified,found.path_hash,key->path_hash);
+   fprintf(stderr,"DBGCACHE path=%s magic=%d/%d ver=%u/%u size=%llu/%llu mod=%lld/%lld hash=%d/%d\n",path,(int)found.magic,(int)key->magic,(unsigned)found.version,(unsigned)key->version,(unsigned long long)found.source_size,(unsigned long long)key->source_size,(long long)found.modified,(long long)key->modified,(int)found.path_hash,(int)key->path_hash);
    fclose(f);return NULL;}
  ++cache_hits;return f;
 }
