@@ -177,11 +177,9 @@ with tempfile.TemporaryDirectory() as folder:
         'esp_err_t nvs_commit(nvs_handle_t h){(void)h;return ESP_OK;}\n'
         'esp_err_t nvs_get_u32(nvs_handle_t h,const char*k,uint32_t*v){(void)h;(void)k;(void)v;return ESP_FAIL;}\n'
         'esp_err_t nvs_set_u32(nvs_handle_t h,const char*k,uint32_t v){(void)h;(void)k;(void)v;return ESP_FAIL;}\n'
-        '#include <stdbool.h>\n'
-        'bool book_weread_cover_metadata(const char*p,char*t,size_t tc,char*a,size_t ac){(void)p;(void)t;(void)tc;(void)a;(void)ac;return false;}\n'
         '#endif\n')
     nvs_obj = [nvs_impl] if sys.platform == 'win32' else []
-    subprocess.run(['cc','-std=gnu11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*gc,'-include',str(shim),'-I'+folder,'-Imain/book','-Imain/apps','-Itools/book_storage_stubs','-Itools/file_tree_stubs',*nvs_obj,'main/book/book_title.c','main/apps/file_tree.c','-o',str(b)],cwd=root,check=True)
+    subprocess.run(['cc','-std=gnu11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*gc,'-include',str(shim),'-I'+folder,'-Imain/book','-Imain/apps','-Itools/book_storage_stubs','-Itools/file_tree_stubs',str(c),'main/book/book_title.c','main/apps/file_tree.c',*nvs_obj,'-o',str(b)],cwd=root,check=True)
     subprocess.run([str(b)],check=True)
     subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*gc,'-Imain/book','-Itools/book_storage_stubs','tools/book_name_host_test.c','main/book/book_title.c','-o',str(b)],cwd=root,check=True)
     subprocess.run([str(b)],check=True)
