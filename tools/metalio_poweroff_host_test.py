@@ -41,7 +41,7 @@ static void read_pico_pmu_keys_resume(void){assert(paused);paused=false;}
 static void metalio_haptic_stop(void){assert(paused);}
 static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50&&paused);}
 static void epd_poweroff(void){assert(paused);}
-static void metalio_poweroff(void){assert(paused&&rtc&&font);++pulses;if(cut_success)longjmp(poweroff,1);}
+static void metalio_poweroff(void){fprintf(stderr,"DBGPOFF paused=%d rtc=%d font=%d closed=%d\n",(int)paused,rtc,font,(int)closed);assert(paused&&rtc&&font);++pulses;if(cut_success)longjmp(poweroff,1);}
 static __attribute__((unused)) int read_pico_sd_remount(void){assert(closed);++remounts;closed=false;return ESP_OK;}
 static int lock_resume_media_io(unsigned wait){/*rc116 无挂起卡时走 0ms 快路径，有挂起才等 500ms。*/
 /*rc116 resumes with 0 ms when nothing is parked, 500 ms otherwise.*/
