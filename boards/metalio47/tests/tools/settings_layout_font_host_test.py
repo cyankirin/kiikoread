@@ -35,7 +35,13 @@ grace=block(s.index('    if(s_page==SETTINGS_LOCK_PIN &&',start))
 main=s[s.index('    if (y<160 || y>=UI_NAV_TOP || ev->x0<36',start):s.index('\nstatic app_redraw_t on_key(',start)].rstrip()
 assert main.endswith('}')
 main=main[:-1]
+# 该切片内含按型号条件编译的段落，抽取后会留下不配对的 #if/#endif，整段剔除。
+# The slice carries board-conditional sections; extracted alone they leave unmatched #if/#endif.
+main='\n'.join(line for line in main.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
 enum=s[s.index('typedef enum { SETTINGS_MAIN'):s.index('} settings_page_t;')+len('} settings_page_t;')]
+# 该切片内含按型号条件编译的段落，抽取后会留下不配对的 #if/#endif，整段剔除。
+# The slice carries board-conditional sections; extracted alone they leave unmatched #if/#endif.
+enum='\n'.join(line for line in enum.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
 macros='\n'.join(re.findall(r'^#define SETTINGS_(?:ROW_H|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M))
 layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static system_font_layout_t system_font_layout(')]
 unit=r'''
