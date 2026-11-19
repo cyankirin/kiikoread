@@ -139,11 +139,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [pico]
-    # 本 fork 只为 Pico（RDP-G01-W / ESP32-S3）出固件并做门禁；metalio47 源码保留以便与上游合并，
-    # 但不再参与构建与测试矩阵（用户 2026-11-03 明确要求）。
-    # This fork ships and gates only the Pico board (ESP32-S3). metalio47 sources stay in
-    # the tree for upstream merges but are no longer built or tested here.
+        board: [pico, metalio47]
+    # 双板同发（用户 2026-11-19 要求）：Pico 与 metalio47 一起构建、一起发布在线刷机与 OTA。
+    # Both boards ship together (user request 2026-11-19): Pico and metalio47 build and publish
+    # the web flasher and OTA feeds in the same run.
     container: espressif/idf:v6.1
     steps:
       - uses: actions/checkout@v4
