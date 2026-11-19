@@ -16,12 +16,13 @@ def _resolve_board_ifs(text):
     for line in text.splitlines():
         t=line.strip()
         if t.startswith('#if') and 'KIIKO_BOARD_METALIO47' in t:
-            cond='!' not in t.split('KIIKO_BOARD_METALIO47')[0]
-            stack.append([cond,cond]); continue
+            cond = '!' not in t.split('KIIKO_BOARD_METALIO47')[0]
+            stack.append([cond, cond]); continue
         if t.startswith('#else') and stack:
-            stack[-1][1]=not stack[-1][0]; continue
-        if t.startswith('#endif') and stack and len(stack) and stack[-1] is not None:
+            stack[-1][1] = not stack[-1][0]; continue
+        if t.startswith('#endif') and stack:
             stack.pop(); continue
+        if stack and not all(frame[1] for frame in stack): continue
         out.append(line)
     return '\n'.join(out)
 s=_resolve_board_ifs(s)
