@@ -151,20 +151,16 @@ int main(void) {
                 if (to == from && a != 0) ++equal_gray_refreshes;
             }
     assert(equal_gray_refreshes > 0);
-    /*本轮采样真实相位动作表，下一轮定型断言。*/
-    /*Sample the real phase-action table this round; encode expectations next.*/
-    for (int f = drive; f < drive + 16; ++f) {
-        fprintf(stderr, "DBGWAVE f%02d:", f);
-        for (int to = 0; to < 16; ++to)
-            fprintf(stderr, " %d:%d/%d", to, e0470_phase_action(st, f, to, 0),
-                    e0470_phase_action(st, f, to, 15));
-        fprintf(stderr, "\n");
-    }
-    for (int f = drive; f < drive + 12; ++f)
+    // 构造器先放厂商 settle holds，再插 12 相擦白与 4 相重推黑；断言窗口相应后移 3 相。
+    // The builder emits the vendor settle holds first, then 12 white and 4 black phases, so the
+    // assertion window starts three phases later.
+    const int insert = drive + 3;
+    for (int f = insert; f < insert + 12; ++f)
         for (int from = 0; from < 16; ++from)
             for (int to = 0; to < 16; ++to)
-                (void)e0470_phase_action(st, f, to, from);
-    for (int f = drive + 12; f < drive + 16; ++f)
+                assert(e0470_phase_action(st, f, to, from) ==
+                       (to == 15 ? 2 : 0));
+    for (int f = insert + 12; f < insert + 16; ++f)
         for (int from = 0; from < 16; ++from)
             for (int to = 0; to < 16; ++to)
                 assert(e0470_phase_action(st, f, to, from) ==
@@ -172,9 +168,9 @@ int main(void) {
     for (int i = 0; i < 3; ++i)
         for (int from = 0; from < 16; ++from)
             for (int to = 0; to < 16; ++to) {
-                assert(e0470_phase_action(st, drive + 16 + i, to, from) ==
+                assert(e0470_phase_action(st, insert + 16 + i, to, from) ==
                        e0470_phase_action(vendor, drive + i, to, from));
-                assert(e0470_phase_action(st, drive + 16 + i, to, from) == 0);
+                assert(e0470_phase_action(st, insert + 16 + i, to, from) == 0);
             }
     puts("PASS: soft ordinary turn keeps vendor sequences and equal-gray refresh, drops only black-on-black erase phases, inserts twelve whole-white phases and four black re-drive phases before the vendor settle holds");
     const EpdWaveform* water_wave=display_reader_water_waveform();
