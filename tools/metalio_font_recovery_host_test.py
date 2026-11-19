@@ -25,7 +25,7 @@ unit=r'''
 #define ESP_ERR_NO_MEM 0x101
 #endif
 static bool s_user_choice;
-static const char *esp_err_to_name(int err){(void)err;return "err";}
+static __attribute__((unused)) const char *esp_err_to_name(int err){(void)err;return "err";}
 static size_t ttf_font_cache_clear_all(void){return 0;}
 typedef int esp_err_t;
 enum{ESP_OK=0,ESP_FAIL=-1,ESP_ERR_INVALID_RESPONSE=0x108};
