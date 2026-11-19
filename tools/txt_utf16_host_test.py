@@ -59,7 +59,7 @@ bool book_index_cache_finish_write(FILE *f,const char *temp,const char *path,boo
 static void close_book(book_txt_t *b){book_txt_close(b);}
 /*rc116 把章节摘要缓存接到书架：宿主固定返回命中，链接层补一个实现。*/
 /*rc116 routes the chapter summary through the shelf; the host always reports a hit.*/
-static uint16_t book_cached_chapter_count(const char *path,uint32_t size,int64_t modified){(void)path;(void)size;(void)modified;return 2;}
+uint16_t book_cached_chapter_count(const char *path,uint32_t size,int64_t modified){(void)path;(void)size;(void)modified;return 2;}
 static unsigned char *bytes(const char *path,size_t *size){
  FILE *f=fopen(path,"rb");assert(f&&!fseek(f,0,SEEK_END));long n=ftell(f);assert(n>=0&&!fseek(f,0,SEEK_SET));
  unsigned char *out=malloc((size_t)n+1);assert(out&&fread(out,1,(size_t)n,f)==(size_t)n);assert(!fclose(f));out[n]=0;*size=(size_t)n;return out;
