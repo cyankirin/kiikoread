@@ -46,7 +46,9 @@ bool book_index_cache_prepare_file(const char *source,const char *tag,uint32_t v
 FILE *book_index_cache_open_read(const char *path,const book_index_cache_header_t *key){
  FILE *f=fopen(path,"rb");if(!f)return NULL;book_index_cache_header_t found;
  if(fread(&found,1,sizeof(found),f)!=sizeof(found)||found.magic!=key->magic||found.version!=key->version||
-    found.source_size!=key->source_size||found.modified!=key->modified||found.path_hash!=key->path_hash){fclose(f);return NULL;}
+    found.source_size!=key->source_size||found.modified!=key->modified||found.path_hash!=key->path_hash){
+   fprintf(stderr,"DBGCACHE path=%s magic=%d/%d ver=%u/%u size=%u/%u mod=%lld/%lld hash=%d/%d\n",path,found.magic,key->magic,found.version,key->version,found.source_size,key->source_size,(long long)found.modified,(long long)key->modified,found.path_hash,key->path_hash);
+   fclose(f);return NULL;}
  ++cache_hits;return f;
 }
 FILE *book_index_cache_open_write(const char *path,const book_index_cache_header_t *key,char *temp,size_t cap){
