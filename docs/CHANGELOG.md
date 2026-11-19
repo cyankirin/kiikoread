@@ -1,5 +1,12 @@
 # 版本变更 / Changelog
 
+## Metalio S31 0.3.3-rc114.02 — 2026-11-19
+
+- **S31**：联网 OTA 新增双通道。升级页提供「官方版 / Anki 版」两行入口，各自检查与下载；官方通道发现与当前大版本一致的原版（rc114 → 本机 rc114.0x）时确认页改写为「官方原版可升级」，说明升级将移除 Anki 功能，并提供第三个按钮**「下载 Anki 版固件到 TF 卡」**——把 Anki 通道清单指向的固件流式写入 TF 根目录 `Metalio-S31-update.bin`（先查剩余空间、288 字节镜像头校验、SHA-256 落盘校验、失败删残包），升级原版后经「TF 卡升级」装回。
+- **S31**：设置首页改为两级分组菜单（连接与时间 / 显示 / 个性化功能 / 升级和恢复），索引页列分组、二级页只显示该组各行；移植并包含 pico 侧两级菜单的全部修复（点击行带裁剪防误触发、返回键回索引、分组页不算主页面、拖动阈值放宽），S31 专属行（快充、前光与振动、内存卡恢复、关机睡眠）保留。
+- **全板**：修复「保存当前配置到 TF 卡」失败——阅读记录备份遇到当前固件不认识的旧格式 NVS 记录（或记录超 512 条）时不再整体失败，改为跳过；保存失败提示改为按真实错误码区分（未识别卡 / 内存不足 / 错误码 0x??），不再一律误导为「检查剩余空间」。
+- **S31**: Online OTA gains two channels. The upgrade page lists "Official / Anki build" rows; when the official channel finds a same-base original (rc114 vs local rc114.0x) the confirm page explains the Anki removal and offers a third button to **save the Anki image to the TF card** (`Metalio-S31-update.bin`, free-space check, header + SHA-256 verification) for later restore via the local TF update. The settings home is now a two-level grouped menu carrying all pico fixes while keeping S31-specific rows. Settings backup no longer fails on unrecognized legacy NVS history records (they are skipped), and save errors now name the real cause instead of blaming TF-card space.
+
 ## 刷机站 2026-11-18 — Metalio Anki 版专用刷机页
 
 - **站点**：刷机站迁移至 `https://cyankirin.github.io/kiikoread/`（仓库由 kiikoreader-anki 改名）；`/metalio/` 恢复为**原版固件**（厂长 rc114），新增 `/metalio-anki/` **Anki 版专用刷机页**（含完整校验的网页 USB 刷入、TF 包下载与 OTA feed `metalio-anki-s31-update.json`），两版完全分开、分区兼容可互切。顶部导航直达两台设备的在线刷机页。

@@ -110,10 +110,10 @@ esp_err_t book_history_backup_write(FILE *file) {
             if (err != ESP_OK) break;
             uint8_t *value = NULL;
             size_t len = 0;
-            err = read_value(h, &info, &value, &len);
-            if (err == ESP_OK && (!valid_record(ns, info.type, info.key, value, len) || count == HISTORY_MAX_RECORDS))
-                err = ESP_ERR_INVALID_STATE;
-            if (err == ESP_OK) {
+            esp_err_t read_err = read_value(h, &info, &value, &len);
+            if (read_err == ESP_OK && (!valid_record(ns, info.type, info.key, value, len) || count == HISTORY_MAX_RECORDS))
+                read_err = ESP_ERR_INVALID_STATE;
+            if (read_err == ESP_OK) {
                 uint8_t head[HISTORY_RECORD_HEADER] = {(uint8_t)ns, (uint8_t)info.type};
                 memcpy(head + 2, info.key, strlen(info.key));
                 head[18] = (uint8_t)len; head[19] = (uint8_t)(len >> 8);
@@ -126,6 +126,12 @@ esp_err_t book_history_backup_write(FILE *file) {
                 }
             }
             free(value);
+            // 中文：读取失败或格式不认识的条目只跳过不失败——不同版本固件可能在同一命名空间
+            //       留下旧格式记录，一条脏记录不应让整个配置备份失败（超过上限同理截断）。
+            // English: Skip unreadable/unrecognized entries instead of failing — firmware version
+            //          drift can leave legacy-format records in the same namespace, and one bad
+            //          entry (or the cap) must not break the whole settings backup.
+            if (read_err != ESP_OK) { err = nvs_entry_next(&it); continue; }
             if (err != ESP_OK) break;
             err = nvs_entry_next(&it);
         }

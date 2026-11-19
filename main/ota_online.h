@@ -20,6 +20,9 @@
 #define PICO_OTA_CAPABILITY "METALIO_S31_HTTPS_OTA_V1"
 #define PICO_OTA_FEED_URL "https://wegooo-cell.github.io/read-pico-reader/metalio-s31-update.json"
 #define PICO_OTA_FEED_FALLBACK_URL "https://kiikoread.com/metalio-s31-update.json"
+// 中文：Anki 版清单走本 fork 的 Pages 镜像（与刷机页同一份）；官方清单常量原样保留。
+// English: The Anki manifest lives on this fork's Pages mirror (the same one as the web flasher).
+#define PICO_OTA_ANKI_FEED_URL "https://cyankirin.github.io/kiikoread/metalio-anki-s31-update.json"
 #else
 #define PICO_OTA_IMAGE_MAX 0x400000
 #define PICO_OTA_PROJECT "Read_Pico"
@@ -75,18 +78,16 @@ bool pico_release_url_valid(const char *url);
 /// 检查或下载唯一后台任务；离页、锁屏先取消并等待。/ Start one worker; cancel and join on exit or lock.
 esp_err_t pico_online_check(void);
 esp_err_t pico_online_download(void);
-#if !KIIKO_BOARD_METALIO47
 /// 中文：按通道检查/下载；官方通道与 pico_online_check()/pico_online_download() 等价。
 /// English: Check/download on a chosen channel; the official channel equals the plain calls.
 esp_err_t pico_online_check_channel(pico_ota_channel_t channel);
 esp_err_t pico_online_download_channel(pico_ota_channel_t channel);
-/// 中文：把 Anki 通道清单指向的固件下载到 TF 卡根目录（Pico-update.bin），供升级原版后
-///       经「TF 卡升级」手动装回；不改动任何 OTA 槽。
+/// 中文：把 Anki 通道清单指向的固件下载到 TF 卡根目录（Metalio-S31-update.bin），供升级
+///       原版后经「TF 卡升级」手动装回；不改动任何 OTA 槽。
 /// English: Download the firmware referenced by the Anki manifest to the TF-card root
-///          (Pico-update.bin) so it can be installed back via the local TF update; no OTA slot
-///          is touched.
+///          (Metalio-S31-update.bin) so it can be installed back via the local TF update; no OTA
+///          slot is touched.
 esp_err_t pico_online_save_anki_tf(void);
-#endif
 bool pico_online_busy(void);
 void pico_online_get_status(pico_update_status_t *status);
 void pico_online_cancel_join(void);
