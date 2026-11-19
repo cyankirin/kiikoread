@@ -128,7 +128,7 @@ static bool shelf_badges;
 static bool app_settings_shelf_progress_badges(void){return shelf_badges;}
 static bool app_settings_set_shelf_progress_badges(bool v){shelf_badges=v;return true;}
 static bool devsync_opened;
-static void devsync_open(void){devsync_opened=true;}
+static __attribute__((unused)) void devsync_open(void){devsync_opened=true;}
 static bool ble_pt_pop_raw(ble_pt_raw_t*p){(void)p;return false;}
 static bool app_settings_home_full_refresh(void){return home_full;}
 static void app_settings_set_home_full_refresh(bool v){home_full=v;}
