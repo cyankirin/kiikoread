@@ -55,6 +55,9 @@ tools/buzzer_score_wav
 !/flash/firmware.bin
 !/flash/ota_data_initial.bin
 !/flash/Pico-update*.bin
+# Anki 专用页的历史版本归档（引导/分区/OTA 数据与官方 metalio 归档同源）
+# Historical archive of the dedicated Anki page (boot/parts/OTA data, same origin as the official metalio archive).
+!/flash/metalio-anki/releases/**/*.bin
 # Anki 分支发布的应用分区固件（供 Flash Download Tool 烧到 0x10000）
 # App-partition firmware published with the Anki fork (flash at 0x10000).
 !/firmware/*.bin
