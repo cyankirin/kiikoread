@@ -42,7 +42,7 @@ enum=s[s.index('typedef enum { SETTINGS_MAIN'):s.index('} settings_page_t;')+len
 # 该切片内含按型号条件编译的段落，抽取后会留下不配对的 #if/#endif，整段剔除。
 # The slice carries board-conditional sections; extracted alone they leave unmatched #if/#endif.
 enum='\n'.join(line for line in enum.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
-macros='\n'.join(re.findall(r'^#define SETTINGS_(?:ROW_H|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M))
+macros='\n'.join(re.findall(r'^#define SETTINGS_(?:ROW_H|GROUP_COUNT|INDEX_Y|GROUP_TOP|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M))
 layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static system_font_layout_t system_font_layout(')]
 unit=r'''
 #include <assert.h>
@@ -83,6 +83,7 @@ static void app_font_activate_system(void){++system_activations;}
 static void app_font_allow_user_choice(void){}
 static void ui_text_set_system_scale(bool b){assert(b);}
 static int s_font_page,s_main_scroll,s_style_scroll,s_ble_scroll,s_ble_learning;
+static int s_main_group;/*本 fork 的二级分组状态*//*fork two-level group state*/
 static bool s_font_sync_confirm,s_config_confirm,s_boot_pending,s_scroll_present_pending,s_reset_confirm,s_reset_pending;
 static char s_sd_notice[96],s_reset_notice[96];
 static char s_font_sync_path[192],s_notice[96],s_boot_notice[96],s_ble_notice[96],s_ble_feedback[96];
@@ -120,7 +121,7 @@ static int metalio_charger_set_fast_charge(bool v){(void)v;++charger_applies;ret
 #define SETTINGS_SCROLL_MAX (SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H-UI_NAV_TOP+12)
 static bool s_panel_repair_pending;
 static void upgrade_open(void){s_page=SETTINGS_UPGRADE;}
-'''+fn('settings_viewport_end')+'\n'+fn('settings_stacked')+'\n'+fn('settings_profile_height')+'\n'+fn('settings_main_row_height')+'\n'+layout+fn('system_font_layout')+'\n'+fn('system_font_item_rect')+'\n'+fn('system_font_sync_button')+'\n'+fn('system_font_page_button')+'\n'
+'''+fn('settings_viewport_end')+'\n'+fn('settings_stacked')+'\n'+fn('settings_profile_height')+'\n'+fn('settings_main_row_height')+fn('settings_group_y')+'\n'+layout+fn('system_font_layout')+'\n'+fn('system_font_item_rect')+'\n'+fn('system_font_sync_button')+'\n'+fn('system_font_page_button')+'\n'
 unit+=fn('pin_grace_row')+'\n'
 unit+='static app_redraw_t grace_tap(int x,int y){ui_gesture_event_t e={UI_GESTURE_TAP,x,y};const ui_gesture_event_t*ev=&e;'+grace+'return APP_REDRAW_NONE;}\n'
 unit+='static app_redraw_t font_tap(int x,int y){ui_gesture_event_t e={UI_GESTURE_TAP,x,y};const ui_gesture_event_t*ev=&e;'+modal+choose+'return APP_REDRAW_NONE;}\n'
