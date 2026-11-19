@@ -59,7 +59,8 @@ static void reset(void){
 }
 int main(void){
  reset();assert(lock_power_off()==ESP_ERR_TIMEOUT);
- assert(rtc==1&&book==1&&font==1&&closes==1&&pulses==1&&remounts==1&&resumes==1&&!paused&&clock_ms==1000);
+ fprintf(stderr,"DBGCNT rtc=%d book=%d font=%d closes=%d pulses=%d remounts=%d resumes=%d paused=%d clock=%d\n",rtc,book,font,closes,pulses,remounts,resumes,(int)paused,(int)clock_ms);
+assert(rtc==1&&book==1&&font==1&&closes==1&&pulses==1&&remounts==1&&resumes==1&&!paused&&clock_ms==1000);
  for(unsigned i=1;i<=3;i++){
   reset();failure=i;assert(lock_power_off()!=ESP_OK);
   assert(!pulses&&!remounts&&!paused&&!closed&&resumes==1);

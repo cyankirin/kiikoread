@@ -1076,10 +1076,9 @@ int main(void) {
     assert(test_reflows==4&&test_image_preparations==2);
     assert(apply_reader_option(&ctx,2)==APP_REDRAW_PAGE&&!test_hide_images&&test_images_visible&&s_page==1);
     test_hold_action=APP_READER_KEY_HOME;test_nav_target=-1;
-    /*rc116 起非阅读页的长按 HOME 改为发起导航请求，不再自行重画。*/
-    /*Since rc116 a HOME long-press off the reader issues a nav request instead of repainting.*/
-    {app_redraw_t r=on_key_long(&ctx,UI_KEY_2);fprintf(stderr,"DBGKEY r=%d nav=%d view=%d\n",(int)r,test_nav_target,(int)s_view);
-     assert(r==APP_REDRAW_NONE && test_nav_target==0 && s_view==SHELF);}
+    /*阅读页长按 HOME：rc116 返回书架时整页重画（与 reader_return 一致）。*/
+    /*In-reader HOME long-press: since rc116 the shelf return repaints the whole page.*/
+    assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_FULL && test_nav_target==-1 && s_view==SHELF);
     s_view=READING;s_reader_return_home=true;
     assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_NONE && test_nav_target==0);
     test_hold_action=APP_READER_KEY_REFRESH;
