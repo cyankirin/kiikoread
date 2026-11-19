@@ -26,8 +26,10 @@ def host_compat(work: Path) -> dict:
         ' if (len == n) { while (src[len]) { ++len; } return len; }\n'
         ' size_t i = 0; while (src[i] && len + i + 1 < n) { dst[len + i] = src[i]; ++i; }\n'
         ' dst[len + i] = 0; return len + strlen(src); }\n')
-    # gcc16 on mingw over-warns on existing snprintf patterns; non-fatal here only.
-    return {'compile': ['-include', str(header), '-Wno-error=format-truncation'], 'link': [str(src)]}
+    # gcc16 on mingw over-warns on existing snprintf patterns; disable the warning
+    # outright here (fully disabling avoids -Werror ordering subtleties). Linux/macOS
+    # CI keeps its own diagnostics unchanged.
+    return {'compile': ['-include', str(header), '-Wno-format-truncation'], 'link': [str(src)]}
 
 def font_hanzi_host_sources(root: Path, work: Path) -> list[str]:
 

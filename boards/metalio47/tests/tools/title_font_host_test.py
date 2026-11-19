@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # 中文：标题使用真实活动TTF，检查原字号、文件句柄、缓存复用和字库资产不变。
 # English: Exercise real active TTF titles, original sizes, file handles, cache reuse and unchanged font assets.
-import os
+import os,sys
 import struct
 import subprocess
 import tempfile
@@ -293,6 +293,10 @@ int main(int argc,char **argv){
  puts("PASS: actual imported system/reader TTF at 32/40/48px, direct raster identity, five stroke levels with native normal identity and fixed advances, English word-space raster alignment/bounded expansion, single file/face, bounded warm cache and no duplicate font load");
 }
 '''
+    # Windows mingw 保留全部未引用段：以独立源文件提供可链接的显示/贴图桩并强制二进制
+    # open 模式；CI 的 gc-sections 会丢弃这些路径，不参与链接。
+    # Windows mingw keeps every unreferenced section: link a standalone stub source with
+    # display/mapping stubs and binary open mode; CI gc-sections drops these paths.
     helper='static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}'+'\n'+function('draw_reading_font_name',ROOT/'main/apps/app_book.c')+'\n'
     unit=unit.replace('int main(int argc,char **argv){',helper+'int main(int argc,char **argv){')
     (work / 'test.c').write_text(unit)
@@ -300,10 +304,12 @@ int main(int argc,char **argv){
              '-Wno-unused-variable', '-fsanitize=address,undefined', '-ffunction-sections', '-fdata-sections',
              '-I' + str(work), '-I' + str(ROOT / 'main/font'), '-I' + str(ROOT / 'main/ui'),
              '-I' + str(ROOT / 'main/book'), '-I' + str(ROOT / 'main'), '-I' + str(ROOT / 'tools/ui_gesture_stubs')]
-    subprocess.run(flags + ['-Dopen=title_test_open', '-Dclose=title_test_close', '-c',
+    from font_hanzi_host_support import host_compat
+    compat = host_compat(work)['compile']
+    subprocess.run(flags + compat + ['-Dopen=title_test_open', '-Dclose=title_test_close', '-c',
                             str(ROOT / 'main/font/ttf_font.c'), '-o', str(work / 'ttf.o')], check=True)
-    gc = '-Wl,-dead_strip' if os.uname().sysname == 'Darwin' else '-Wl,--gc-sections'
-    subprocess.run(flags +font_hanzi_host_sources(ROOT,work)+ [str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
+    gc = '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections'
+    subprocess.run(flags + compat + font_hanzi_host_sources(ROOT,work)+ host_compat(work)['link'] + [str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
                             str(ROOT / 'main/ui/ui_kit.c'), '-lm', gc, '-o', str(work / 'test')], check=True)
     args=[str(work / 'test'), str(work / 'system.ttf'), str(work / 'reader.ttf')]
     if os.environ.get('METALIO_TEST_USER_FONT'):args.append(os.environ['METALIO_TEST_USER_FONT'])
