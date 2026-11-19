@@ -262,7 +262,7 @@ int main(int argc,char **argv){
     win_stubs.write_text(
         '#include <stdint.h>\n#include <stdbool.h>\n#include <fcntl.h>\n'
         'typedef struct { int x, y, width, height; } EpdRect;\n'
-        'int _fmode=_O_BINARY;\n'
+        '#if defined(_WIN32) || defined(__MINGW32__)\nint _fmode=_O_BINARY;\n#endif\n'
         'enum EpdRotation { EPD_ROT_LANDSCAPE, EPD_ROT_PORTRAIT, EPD_ROT_INVERTED_LANDSCAPE, EPD_ROT_INVERTED_PORTRAIT };\n'
         'enum EpdRotation epd_get_rotation(void){return EPD_ROT_LANDSCAPE;}\n'
         'static int stub_w,stub_h;int epd_width(void){return stub_w;}int epd_height(void){return stub_h;}\n'

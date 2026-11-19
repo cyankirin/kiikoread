@@ -212,7 +212,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [pico]
+        board: [pico, metalio47]
     steps:
       - uses: actions/checkout@v4
       - name: Select Clang for sanitizer host regressions

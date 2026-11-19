@@ -8,7 +8,6 @@
  */
 #include "ota_online.h"
 #include "ota_update.h"
-#include "read_pico_sd.h"
 #include "esp_private/cache_utils.h"
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
@@ -441,11 +440,9 @@ static bool save_anki_tf(void) {
         pico_version_compare(running->version, release->minimum_base_version) < 0) {
         state(PICO_UPDATE_FAILED, "基础包不兼容，无法保存 Anki 版固件"); goto failed;
     }
-    read_pico_sd_info_t info;
-    if (read_pico_sd_get_info(&info) == ESP_OK && info.mounted && info.space_valid &&
-        info.free_bytes && info.free_bytes < release->size) {
-        state(PICO_UPDATE_FAILED, "TF 卡剩余空间不足，无法保存 Anki 版固件"); goto failed;
-    }
+    // 卡容量检查按 pico 版对齐：pico 版不做预检，靠 fopen 打不开直接报「TF 卡不可用」。
+    // Capacity pre-check aligns with the pico copy: no up-front probe; an unopenable card
+    // already reports "TF 卡不可用" through the fopen failure path below.
     state(PICO_UPDATE_DOWNLOADING, "正在下载 Anki 版固件到 TF 卡");
     bool ok = false;
     for (unsigned attempt = 0; attempt < 3 && !ok && !atomic_load(&s_cancel); ++attempt) {

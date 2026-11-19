@@ -230,7 +230,7 @@ int main(int argc,char**argv){
  stub=w/'win_stub.c';stub.write_text('#include <stdint.h>\n#include <fcntl.h>\n'
   '// mingw 的 open() 默认文本模式；强制二进制，避免 CRLF 破坏 TTF 读取。/ mingw open() defaults to\n'
   '// text mode; force binary so CRLF translation cannot corrupt TTF reads.\n'
-  'int _fmode=_O_BINARY;\n'
+  '#if defined(_WIN32) || defined(__MINGW32__)\nint _fmode=_O_BINARY;\n#endif\n'
   'void epd_fill_rect(int x0,int y0,int x1,int y1,uint8_t c,uint8_t *fb){(void)x0;(void)y0;(void)x1;(void)y1;(void)c;(void)fb;}\n')
  for name in ('book_layout','html_text'):
   obj=w/(name+'.o');subprocess.run(flags+compat+['-Dfree=heap_caps_free','-c',str(ROOT/'main/book'/(name+'.c')),'-o',str(obj)],check=True);objects.append(str(obj))
