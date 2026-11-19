@@ -39,6 +39,9 @@ main=main[:-1]
 # #if/#endif, so strip the preprocessor lines from the slice.
 main='\n'.join(line for line in main.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
 enum=s[s.index('typedef enum { SETTINGS_MAIN'):s.index('} settings_page_t;')+len('} settings_page_t;')]
+# 枚举与版面切片同样可能含按型号条件编译的行；抽取时一并剔除。
+# The enum and layout slices can carry board-conditional lines too; strip them here as well.
+enum='\n'.join(line for line in enum.splitlines() if not line.lstrip().startswith(('#if','#else','#elif','#endif')))
 macros='\n'.join(re.findall(r'^#define SETTINGS_(?:ROW_H|GROUP_COUNT|INDEX_Y|GROUP_TOP|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|MAINTENANCE_Y)[^\n]*',s,re.M))
 layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static system_font_layout_t system_font_layout(')]
 unit=r'''
