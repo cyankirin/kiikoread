@@ -32,7 +32,9 @@ static int read_pico_sd_get_info(read_pico_sd_info_t *i){i->mounted=card;return 
 static int book_suspend_io(void){assert(rtc&&!pulses&&!closes);++book;return failure==1?-4:ESP_OK;}
 static int ttf_font_suspend_io(void){assert(book&&!pulses&&!closes);++font;return failure==2?-4:ESP_OK;}
 static int read_pico_sd_sync(void){assert(book&&font&&!pulses);++closes;if(failure==3)return ESP_ERR_NOT_FINISHED;closed=true;return ESP_OK;}
-static int read_pico_pmu_keys_pause(void){assert(closed&&!pulses);++key_pauses;if(key_pending)return ESP_ERR_INVALID_STATE;paused=true;return ESP_OK;}
+static int read_pico_pmu_keys_pause(void){/*rc116 先暂停按键再落卡，closed 不再先成立。*/
+/*rc116 parks key input before the card closes, so closed is not implied here.*/
+assert(!pulses);++key_pauses;if(key_pending)return ESP_ERR_INVALID_STATE;paused=true;return ESP_OK;}
 static void read_pico_pmu_keys_resume(void){assert(paused);paused=false;}
 static void metalio_haptic_stop(void){assert(paused&&closed);}
 static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50&&closed&&paused);}

@@ -191,7 +191,9 @@ int main(void){
   images=content==1;s_reader_image_refresh_pending=images!=0;background=content==2;
   assert(present(&ctx,APP_REDRAW_AREA));
   assert(calls==1&&selected==14&&modes[0]==MODE_GL16&&waves[0]==&soft_turn_waveform&&s_reader_text_frame==(content==0));
-  same_area(areas[0],reader_area());
+  /*rc116 起普通翻页整屏推送（先白后黑），不再只刷正文区。*/
+  /*Since rc116 ordinary turns push the whole page (white then black re-drive).*/
+  same_area(areas[0],(EpdRect){0,0,684,1216});
   assert(footer_commits==1&&!s_reader_footer_pending&&!s_reader_cleanup);
  }
  for(int full=0;full<2;++full)for(int image=0;image<2;++image){
