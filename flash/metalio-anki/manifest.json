@@ -1,6 +1,6 @@
 {
   "name": "Metalio 4.7 V1.5",
-  "version": "0.3.3-rc114.01",
+  "version": "0.3.3-rc114.02",
   "board": "metalio47",
   "experimental_pie_pixels": true,
   "experimental_text_ripple": true,
@@ -36,8 +36,8 @@
         {
           "path": "firmware.bin",
           "offset": 65536,
-          "size": 5232096,
-          "sha256": "958a0654fa945f2e2216260d396932b79e9b2de9c04eeafd21b9b7521f2bf707"
+          "size": 5237328,
+          "sha256": "1643e26db7232c3952bb8eb3ce424135edf6f101dfff988cf558f90e45d421d7"
         },
         {
           "path": "ota_data_initial.bin",
@@ -48,14 +48,14 @@
       ]
     }
   ],
-  "updated_at": "2026-11-17T14:47:40+08:00",
+  "updated_at": "2026-11-19T11:55:00+08:00",
   "pico_ota": {
     "layout": "metalio-s31-dual-5m-v1",
-    "base_version": "0.3.3-rc114.01",
+    "base_version": "0.3.3-rc114.02",
     "minimum_base_version": "0.3.3-rc98",
     "online_ota_base_version": "0.3.3-rc98",
     "rollback": true
   },
-  "usb_package_url": "https://github.com/wegooo-cell/read-pico-reader/releases/download/metalio-s31-v0.3.3-rc114.01/kiikoread-metalio47-0.3.3-rc114.01-USB.zip",
-  "tf_package_url": "https://github.com/wegooo-cell/read-pico-reader/releases/download/metalio-s31-v0.3.3-rc114.01/kiikoread-metalio47-0.3.3-rc114.01-TF.zip"
+  "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.02/kiikoread-metalio47-0.3.3-rc114.02-USB.zip",
+  "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.02/kiikoread-metalio47-0.3.3-rc114.02-TF.zip"
 }
