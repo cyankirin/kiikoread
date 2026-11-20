@@ -2,8 +2,8 @@
   "schema": 1,
   "releases": [
     {
-      "version": "0.3.3-rc117.02",
-      "manifest": "releases/0.3.3-rc117.02/manifest.json",
+      "version": "0.3.3-rc109.02",
+      "manifest": "releases/0.3.3-rc109.02/manifest.json",
       "label": "当前版本"
     },
     {

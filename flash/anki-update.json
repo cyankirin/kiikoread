@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "0.3.3-rc109.02",
+  "project": "Read_Pico",
+  "board": "RDP-G01-W",
+  "layout": "pico-dual-4m-v1",
+  "minimum_base_version": "0.3.3-rc72",
+  "url": "https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc109.02.bin",
+  "size": 3686720,
+  "sha256": "14a1b5407d52c090e377a9f880a0fba193b403dacb1161c06309b8f1ee490905",
+  "notes": "合并官方 rc109/rc116 基线并裁剪字库档：补字库 PIF4（6030 字）外置到 /flash，OTA 首启自动分发，缺文件时内嵌 PIF1 降级。"
+}

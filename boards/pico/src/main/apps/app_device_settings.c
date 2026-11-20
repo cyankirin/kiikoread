@@ -1224,22 +1224,6 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_PIN_ENTRY) { ui_pinpad_paint(fb, &s_pinpad, ui_pinpad_full()); return; }
     ui_clear_page(fb);
     if(s_page==SETTINGS_MAIN)ui_root_background(fb);
-    // 中文：二级分组之间切换时，行数较少的页会在差分刷新后残留上一页末行的浅灰影子
-    //       （例如连接与时间组的「日期与时间」半行出现在个性化/升级页底部，点了也没有反应）。
-    //       仅在分组发生变化时请求一次整屏 GC16，把面板彻底擦净；列表滚动不触发，保持原有差分节奏。
-    // English: Switching between group pages can leave a faint ghost of the previous page's last row
-    //          under differential refresh (e.g. half of "日期与时间" under the Personal/Maintenance
-    //          pages, which cannot be tapped). Request one full GC16 wipe only on a group change;
-    //          list scrolling keeps its existing differential cadence.
-    {
-        static int s_rendered_group = -2;
-        if (s_page == SETTINGS_MAIN) {
-            if (s_rendered_group != s_main_group) {
-                s_rendered_group = s_main_group;
-                display_request_full_refresh();
-            }
-        } else s_rendered_group = -2;
-    }
     if (s_page == SETTINGS_FACTORY_RESET) {
         ui_nav_status(fb);
         back_header(fb,"恢复出厂设置");
@@ -1825,8 +1809,14 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const char *connection_labels[]={"WiFi","蓝牙翻页器","设备同步","日期与时间"};
     const char *connection_values[]={wifi,app_settings_ble_turner()?"已开启":"已关闭","两台互传","设置"};
     const int connection_icons[]={0,1,21,6};
-    setting_group(fb,SETTINGS_WIRELESS_Y-49,"连接与时间",SETTINGS_WIRELESS_Y,
-                  connection_icons,connection_labels,connection_values,SETTINGS_WIRELESS_ROWS);
+    // 中文：下面 if/else 链里每个页面（索引 / 各二级分组）都会自行绘制，此处不需要先画一遍。
+    //       这次无条件绘制是 rc106 单列长列表时代的遗留：rc109 把连接组从 3 行加到 4 行后，
+    //       其末行「日期与时间」会露在只有 5 行的个性化/升级页卡片下方，看得见却点不到。
+    //       删掉病根，而不是用全刷掩盖。
+    // English: Every page paints itself in the if/else chain below; this unconditional paint is a
+    //          leftover from the rc106 single-list layout. After rc109 grew the connection group
+    //          to four rows, its last row ("日期与时间") leaked below the shorter 5-row
+    //          Personal/Maintenance cards — visible but untappable. Remove the cause.
     char font_name[96],contrast[24],idle[24],signature[96];
     snprintf(font_name,sizeof(font_name),"%s · %u%%",system_font_label(app_settings_system_font_path()),app_settings_system_font_size());
     snprintf(contrast,sizeof(contrast),"%u%%",app_settings_system_contrast());
