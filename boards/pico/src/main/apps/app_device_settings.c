@@ -1224,6 +1224,22 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_PIN_ENTRY) { ui_pinpad_paint(fb, &s_pinpad, ui_pinpad_full()); return; }
     ui_clear_page(fb);
     if(s_page==SETTINGS_MAIN)ui_root_background(fb);
+    // 中文：二级分组之间切换时，行数较少的页会在差分刷新后残留上一页末行的浅灰影子
+    //       （例如连接与时间组的「日期与时间」半行出现在个性化/升级页底部，点了也没有反应）。
+    //       仅在分组发生变化时请求一次整屏 GC16，把面板彻底擦净；列表滚动不触发，保持原有差分节奏。
+    // English: Switching between group pages can leave a faint ghost of the previous page's last row
+    //          under differential refresh (e.g. half of "日期与时间" under the Personal/Maintenance
+    //          pages, which cannot be tapped). Request one full GC16 wipe only on a group change;
+    //          list scrolling keeps its existing differential cadence.
+    {
+        static int s_rendered_group = -2;
+        if (s_page == SETTINGS_MAIN) {
+            if (s_rendered_group != s_main_group) {
+                s_rendered_group = s_main_group;
+                display_request_full_refresh();
+            }
+        } else s_rendered_group = -2;
+    }
     if (s_page == SETTINGS_FACTORY_RESET) {
         ui_nav_status(fb);
         back_header(fb,"恢复出厂设置");
