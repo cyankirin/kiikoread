@@ -31,6 +31,7 @@ enum {READING,TOC,SHELF,READER_PANEL_NONE,READER_PANEL_TOOLS};
 #define E0470_TURN_LTR -1
 #define ESP_LOGI(...) ((void)0)
 static char s_requested_open[288];
+static int64_t s_resume_media_deadline_ms;
 static bool s_requested_fullscreen=true,s_requested_open_home,s_requested_resume_mode,s_shelf_open_queued;
 static bool default_fullscreen;
 static bool app_settings_reader_default_fullscreen(void){return default_fullscreen;}
@@ -102,6 +103,10 @@ static bool book_layout_build_blocks(const char *text,size_t len,const void *blo
 static void release_page_images(void){}
 static void prepare_inline_image(void){}
 static void save_progress(void){++saves;}
+static void reader_heading_viewport(void){}
+#define READER_TICKET_DAY_MS UINT64_C(86400000)
+static uint64_t book_ticket_local_time_ms(void){return 0;}
+static void ticket_add(uint32_t day,uint32_t ms,uint32_t turns){(void)day;assert(!ms);s_stats_pending_turns+=turns;}
 static void free_book(void){assert(!draw_locked);s_text=NULL;}
 static size_t book_chapter_count(void){return 2;}
 static bool load_chapter(app_ctx_t *ctx,size_t chapter,int off,bool last){(void)ctx;(void)off;if(load_failed)return false;s_chapter=chapter;s_page=last?book_layout_page_count()-1:0;return true;}
@@ -127,7 +132,7 @@ static void book_layout_set_first_line_indent(unsigned em){assert(draw_locked);l
 static void book_layout_set_first_line_indent_adjust(int px){assert(draw_locked);layout_adjustment=px;}
 """
 unit+='static bool s_rc_auto_turning,s_rc_auto_waiting;\nstatic reader_auto_clock_t s_rc_auto;\n'+function('rc_pause_auto',ROOT/'main/apps/book_reader_controls_runtime.inc')+'\n'
-unit += "static void ticket_count_turn(void){++s_session_turns;}\n"
+unit += function('ticket_count_turn',ROOT/'main/apps/book_ticket_reader.inc')+'\n'
 unit += function('apply_reader_indent', BOOK) + '\n'
 for name in ('reader_zoom_reset', 'app_book_request_open', 'app_book_request_open_from_home', 'app_book_request_resume',
              'toggle_reader_fullscreen', 'apply_reader_option', 'reader_turn_chrome', 'turn_page'):
@@ -203,8 +208,8 @@ int main(void){
  }
  reset(true,false,2,0);test_images=1;assert(turn_page(&ctx,1)==APP_REDRAW_AREA);
  test_images=0;effect=1;
- // Mixed/image targets and leaving an image never run the text ripple waveform.
- reset(true,false,2,0);test_images=2;assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&s_water_turn_pending==TEST_IMAGE_RIPPLE&&!s_reader_turn_pending);
+ // 图文使用已实现的完整灰阶水波纹路径。/ Mixed/image targets use the implemented full-gray image ripple route.
+ reset(true,false,2,0);test_images=2;assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&s_water_turn_pending&&!s_reader_turn_pending);
  reset(true,false,2,0);test_images=0;s_reader_text_frame=false;
  assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_water_turn_pending&&!s_reader_turn_pending);
  test_images=0;

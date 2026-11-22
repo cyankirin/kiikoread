@@ -17,10 +17,14 @@ bool app_book_request_open_from_home(const char *path);
 bool app_book_request_resume(const char *path, bool fullscreen);
 /// 仅导出已打开阅读上下文。/ Export only an already open reader context.
 bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen);
+/// 锁屏保存后，当前书的位置已落盘。/ The current book position is durable after the lock save.
+bool app_book_checkpoint_ready(void);
 bool app_image_request_open(const char *path);
 /// 文件页点开 .apkg：切到 Anki 页并导入该文件。/ File page opens an .apkg: switch to the Anki page and import it.
 bool app_anki_request_open(const char *path);
 void app_files_request_folder(int folder);
+bool app_files_request_book_action(const char *path,bool move);
+bool app_book_copy_file_identity(const char *old_path,const char *new_path);
 void app_book_request_manage(void);
 void app_book_return_from_cover_wifi(bool connected);
 /// 共用设置中的书架样式页，返回保留管理上下文。/ Reuse the settings chooser and retain the originating management context.

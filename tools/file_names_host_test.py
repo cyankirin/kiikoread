@@ -8,6 +8,7 @@ root=Path(__file__).resolve().parents[1]
 s=root/'main/apps/app_files.c'
 unit=r'''
 #include <assert.h>
+int read_pico_name_compare(const char*,const char*);
 #include <stdbool.h>
 #include <stddef.h>
 bool book_weread_cover_metadata(const char *path, char *title, size_t title_cap,
@@ -28,6 +29,11 @@ bool book_weread_cover_metadata(const char *path, char *title, size_t title_cap,
 #include <unistd.h>
 #include "book_title.h"
 #include "file_tree.h"
+#include "nvs.h"
+esp_err_t nvs_open(const char *ns,int mode,nvs_handle_t *handle){(void)ns;(void)mode;*handle=1;return ESP_OK;}
+void nvs_close(nvs_handle_t handle){(void)handle;}
+esp_err_t nvs_get_blob(nvs_handle_t handle,const char *key,void *data,size_t *size){(void)handle;(void)key;(void)data;(void)size;return ESP_ERR_NVS_NOT_FOUND;}
+
 #define FILE_MAX 96
 #define FILE_VIEW_MOVE 2
 #define FILE_VIEW_LIST 1
@@ -58,12 +64,16 @@ unit+=r'''
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 #define SHELF 0
+#define ESP_LOGW(...) ((void)0)
 typedef int nvs_handle_t;
 typedef struct{int unused;}app_ctx_t;
 typedef struct{uint32_t file_size,last_open_s;uint16_t chapter;uint8_t pct;}book_progress_t;
 typedef struct{DIR*dir;char path[288];}shelf_scan_frame_t;
-static bool s_shelf_scan_yield_to_touch;
-static bool app_touch_input_pending(app_ctx_t*c){(void)c;return false;}
+static bool __attribute__((unused)) s_shelf_scan_yield_to_touch;
+static bool s_import_candidates,s_manage_books;
+#define BULK 1
+static bool book_library_contains(const char *path){(void)path;return true;}
+static __attribute__((unused)) bool app_touch_input_pending(app_ctx_t*c){(void)c;return false;}
 static void *heap_caps_calloc(size_t n,size_t z,int caps){assert(caps==3);return calloc(n,z);}
 static bool app_poll_main_navigation(app_ctx_t*c){(void)c;return false;}
 static const char*app_settings_books_dir(void){return test_root;}
@@ -154,7 +164,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as folder:
     c=Path(folder)/'test.c';b=Path(folder)/'test';c.write_text(unit)
-    (Path(folder)/'esp_err.h').write_text((root/'tools/book_storage_stubs/esp_err.h').read_text()+'\n#ifndef ESP_ERR_INVALID_SIZE\n#define ESP_ERR_INVALID_SIZE 6\n#endif\n#ifndef ESP_ERR_NOT_SUPPORTED\n#define ESP_ERR_NOT_SUPPORTED 7\n#endif\n#ifndef ESP_ERR_NOT_FOUND\n#define ESP_ERR_NOT_FOUND 8\n#endif\n#ifndef ESP_ERR_NO_MEM\n#define ESP_ERR_NO_MEM 9\n#endif\n')
+    (Path(folder)/'esp_err.h').write_text((root/'tools/book_storage_stubs/esp_err.h').read_text()+'\n#define ESP_ERR_NOT_SUPPORTED 7\n#define ESP_ERR_NOT_FOUND 8\n#define ESP_ERR_NO_MEM 9\n')
     (Path(folder)/'nvs.h').write_text((root/'tools/book_storage_stubs/nvs.h').read_text())
     gc=['-Wl,-dead_strip']if sys.platform=='darwin'else['-Wl,--gc-sections']
     # mingw 缺 lstat 且 mkdir 单参（POSIX 两参）；win32 走 shim 头，CI Linux 诊断不变。
