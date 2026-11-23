@@ -12,7 +12,8 @@ highlevel = ROOT/'components/epdiy/src/highlevel.c'
 text = render.read_text()
 start = text.index('__attribute__((optimize("O3"))) static inline int _interlace_line_unaligned(')
 end = text.index('\nEpdRect epd_difference_image(\n', start)
-unit = PREFIX + text[start:end] + r'''
+extracted = text[start:end].replace('__attribute__((optimize("O3"))) ', '')
+unit = PREFIX + extracted + r'''
 #define W 1216
 #define H 684
 #define B (W*H/2)

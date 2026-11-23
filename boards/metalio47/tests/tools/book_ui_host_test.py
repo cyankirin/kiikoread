@@ -293,6 +293,10 @@ static void app_files_request_folder(int folder){(void)folder;}
 static int s_pressed_control;
 static bool s_shelf_feedback_pending,s_shelf_page_pending,s_cover_batch_present_pending;
 static bool s_scan_pending,s_toolbar;
+/* rc110 extracted helpers reference these app_book.c statics. */
+static int64_t s_resume_media_deadline_ms;
+static bool s_import_candidates,s_library_setup_pending;
+static bool s_manage_books,s_rescan_prompt,s_import_all_pending,s_import_return_bulk,s_manage_files_return;
 static int s_mode,test_cover_prepares,test_shelf_renders;
 static EpdRect s_area;
 #define MODE_GL16 1

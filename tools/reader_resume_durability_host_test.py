@@ -76,7 +76,8 @@ static int update_display_full(void *hl){(void)hl;return 0;}
 static void app_lock_wait_key_idle(unsigned ms){assert(ms==800);}
 static void epd_poweroff(void){}
 static void app_restart_host(void){assert(checkpoint_live&&deep_ready);}
-static esp_err_t app_enter_host_sleep(int mode){assert(mode==APP_SLEEP_OFF&&checkpoint_live&&deep_ready);++power_calls;return ESP_FAIL;}
+// rc110 clears the resume record before the sleep handoff (c15f6bd), so checkpoint_live is already false here.
+static esp_err_t app_enter_host_sleep(int mode){assert(mode==APP_SLEEP_OFF&&!checkpoint_live&&deep_ready);++power_calls;return ESP_FAIL;}
 static void pico_boot_clear_resume(void){checkpoint_live=false;}
 """
  unit+=function('prepare_lock',source)+'\n'+function('run_power_action',source)
