@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "previous_version": "0.3.3-rc114.01",
+  "previous_version": "0.3.3-rc114.02",
   "releases": [
     {
-      "version": "0.3.3-rc114.01",
-      "manifest": "metalio-anki/releases/0.3.3-rc114.01/manifest.json",
-      "bin": "Metalio-S31-update-0.3.3-rc114.01.bin",
+      "version": "0.3.3-rc114.02",
+      "manifest": "metalio-anki/releases/0.3.3-rc114.02/manifest.json",
+      "bin": "Metalio-S31-update-0.3.3-rc114.02.bin",
       "source_commit": "7532469f6ab87c27642293508868c37283b6f52b",
       "files": {
         "bootloader.bin": {
@@ -17,16 +17,16 @@
           "sha256": "6a5500c826a7957e06233d2a580e8378106ce88a31db2857ccb5333a3c5f84bc"
         },
         "firmware.bin": {
-          "size": 5232096,
-          "sha256": "958a0654fa945f2e2216260d396932b79e9b2de9c04eeafd21b9b7521f2bf707"
+          "size": 5237328,
+          "sha256": "1643e26db7232c3952bb8eb3ce424135edf6f101dfff988cf558f90e45d421d7"
         },
         "ota_data_initial.bin": {
           "size": 8192,
           "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
         }
       },
-      "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.01/kiikoread-metalio47-0.3.3-rc114.01-USB.zip",
-      "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.01/kiikoread-metalio47-0.3.3-rc114.01-TF.zip"
+      "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.02/kiikoread-metalio47-0.3.3-rc114.02-USB.zip",
+      "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.02/kiikoread-metalio47-0.3.3-rc114.02-TF.zip"
     }
   ]
 }

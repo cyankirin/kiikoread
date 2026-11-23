@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc114.02",
+  "version": "0.3.3-rc118.01",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "0.3.3-rc98",
-  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc114.02.bin",
-  "size": 5237328,
-  "sha256": "1643e26db7232c3952bb8eb3ce424135edf6f101dfff988cf558f90e45d421d7",
-  "notes": "新增联网 OTA 双通道与两级设置菜单：升级页可分别检查/下载官方版与 Anki 版；官方同基线原版可升级并可先把 Anki 版固件备份到 TF 卡。设置改为分组两级菜单；修复保存配置到 TF 卡失败的问题。"
+  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.01.bin",
+  "size": 4786368,
+  "sha256": "25ce4901e6c7e1e163209a86ecc4a3bad38ea01891fc8e8cd5a219632642badd",
+  "notes": "合并官方 S31 RC118 基线（Anki 版）：书架按真实文件夹管理、列表 13 项与封面 4×3；水波纹恢复 RC110 擦白顺序；设置新增低残影与 12 小时制。官方修复随基线带入，Anki 导入/续学/进度备份保留。"
 }
