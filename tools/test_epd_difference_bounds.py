@@ -94,7 +94,7 @@ def run(board, directory, negative=False):
     source = (ROOT/f'boards/{board}/src/components/epdiy/src/render.c').read_text()
     start = source.index('__attribute__((optimize("O3"))) static inline int _interlace_line_unaligned(')
     end = source.index('\nEpdRect epd_difference_image(\n', start)
-    functions = source[start:end]
+    functions = source[start:end].replace('__attribute__((optimize("O3"))) ', '')
     if negative:
         functions = functions.replace('uint8_t mask = max_x % 2 ?', 'uint8_t mask = min_x % 2 ?')
     unit = directory/f'{board}.c'

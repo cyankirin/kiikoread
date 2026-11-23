@@ -42,6 +42,9 @@ static const EpdWaveform *display_main_gray_waveform(void){return &E0470_WAVEFOR
 static const EpdWaveform *display_main_normal_waveform(void){return &E0470_WAVEFORM;}
 static const EpdWaveform *display_reader_soft_turn_waveform(void){return &E0470_SOFT_TEXTTURN_WAVEFORM;}
 static const EpdWaveform *display_reader_gray8_turn_waveform(void){static const int wave=8;return &wave;}
+/* rc110: low-ghost reader mode and white-push waveform are new reader dependencies. */
+static bool app_settings_low_ghost(void){return false;}
+static const EpdWaveform *display_reader_white_push_waveform(void){return &E0470_WAVEFORM;}
 static void reader_prefetch_end(bool prep){(void)prep;}
 static void pico_boot_book_end(bool ok){(void)ok;}
 static void ui_image_bw_rect(uint8_t *fb,EpdRect rect){(void)fb;(void)rect;}
