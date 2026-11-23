@@ -44,6 +44,8 @@ typedef int app_wake_source_t;
 static EpdiyHighlevelState *s_lock_hint_hl,*s_boot_lock_hl;
 static struct{unsigned serial;}s_lock_hint;
 static bool s_boot_lock_active,s_boot_lock_known,s_boot_lock_draw;
+// rc110 的 sleep.c 把深睡就绪标志抬到文件级，被抽取的入口会直接引用它。 / rc110 hoists the deep-ready flag to file scope.
+static bool s_lock_deep_ready;
 static unsigned read_pico_pmu_lock_key_serial(void){return 0;}
 static void lock_resume_service(void){}
 static uint8_t pixels[FRAME_BYTES],panel[FRAME_BYTES],history[FRAME_BYTES],style,current_background=0x32;
