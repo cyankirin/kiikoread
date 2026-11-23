@@ -3670,12 +3670,21 @@ esp_err_t ttf_font_resume_io(void) {
         if (!face->f_io_suspended) continue;
         int fd = open(face->f_path, O_RDONLY);
         struct stat now;
+        // 中文：TF 卡重挂后 FAT 的修改时间可能因时区/时间同步而漂移，字节长度与读指针才是
+        //       字体身份的真凭据；把 mtime 当成硬条件会让一次概率性漂移永久废掉当前字库。
+        // English: FAT mtimes can drift across remount/time sync. Length plus the saved read
+        //          position identify the face; treating mtime as fatal bricks the active face
+        //          after a probabilistic drift.
         if (fd < 0 || fstat(fd, &now) || now.st_size != face->f_io_stat.st_size ||
-            now.st_mtime != face->f_io_stat.st_mtime || lseek(fd, face->f_io_position, SEEK_SET) < 0) {
+            lseek(fd, face->f_io_position, SEEK_SET) < 0) {
             if (fd >= 0) close(fd);
             face->f_ready = false;
             if (i == s_cur_index) result = ESP_FAIL;
             continue;
+        }
+        if (now.st_mtime != face->f_io_stat.st_mtime) {
+            ESP_LOGW("ttf_font", "resume %s accepted with refreshed mtime", face->f_path);
+            face->f_io_stat = now;
         }
         face->f_fd = fd; face->f_io_suspended = false; face->f_ready = face->f_io_ready;
     }

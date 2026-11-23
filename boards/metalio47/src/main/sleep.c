@@ -112,8 +112,15 @@ static esp_err_t lock_resume_media_io(uint32_t wait_ms) {
     s_lock_sd_parked = false;
     esp_err_t font = ttf_font_resume_io(), book = book_resume_io();
     s_lock_book_reopen_failed = book != ESP_OK;
-    if (font == ESP_OK && book == ESP_OK) s_lock_io_pending = false;
-    return lock_media_result(font != ESP_OK ? font : book);
+    // 中文：字体句柄重开失败只算字体自己的事：路径与挂起槽都还在，app_font 会按路径整表重载。
+    //       让它拖住全局 pending 会把“本次开机都用内建字体”钉死（现场只能重启恢复）。
+    // English: A failed font handle reopen is local to that face: its path and suspended slot
+    //         survive, and app_font reloads it by path. Letting it hold the global pending flag
+    //         pins the whole boot to the built-in face, which is the reboot-only symptom.
+    if (font != ESP_OK)
+        ESP_LOGW(TAG, "wake font reopen failed: %s; keeping path for reload", esp_err_to_name(font));
+    if (book == ESP_OK) s_lock_io_pending = false;
+    return lock_media_result(book);
 }
 static void lock_resume_io_service(void) {
     metalio_sleep_report_reset();

@@ -819,7 +819,16 @@ static void debounce_touch(
 static bool try_load_saved_sd_font(bool allow_probe) {
 #if KIIKO_BOARD_METALIO47
     if (app_sd_recovery_busy()) return false;
-    if (!app_sleep_media_ready()) return false;
+    if (!app_sleep_media_ready()) {
+        // 中文：唤醒可能留下未确认的挂起状态。卡已挂好时字体重开可以独立进行，先解除全局
+        //       挂起，否则设置里的 TF 字体会被“媒体未就绪”永久挡住，只能重启才恢复。
+        // English: A wake can leave the handoff unconfirmed. Once the card is mounted the face
+        //          can be reopened independently; releasing the stale pending state keeps a
+        //          TF font from being blocked for the whole boot.
+        read_pico_sd_info_t stale = {0};
+        if (read_pico_sd_get_info(&stale) != ESP_OK || !stale.mounted) return false;
+        app_sleep_discard_media_io();
+    }
 #endif
     read_pico_sd_info_t info;
     esp_err_t err = read_pico_sd_get_info(&info);
