@@ -49,7 +49,6 @@ static bool s_part_more;
 typedef struct {int image;unsigned image_width,image_height;} blk_t;
 static blk_t *s_blocks;
 static int s_px=48,s_reader_panel=READER_PANEL_NONE,s_reader_slider=-1,s_view=READING;
-static void reader_heading_viewport(void){}/*rc117 阅读页标题视口钩子；宿主空实现*/
 #define s_toolbar (s_reader_panel!=READER_PANEL_NONE)
 static bool s_reader_fullscreen,s_clear_confirm,s_reader_text_frame,s_reader_turn_pending;
 static bool s_reader_image_frame,s_reader_image_exit_pending;

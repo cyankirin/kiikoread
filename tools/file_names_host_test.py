@@ -173,13 +173,13 @@ with tempfile.TemporaryDirectory() as folder:
     shim.write_text('#if defined(_WIN32)\n#include <direct.h>\n#define lstat stat\n#define mkdir(path,mode) _mkdir(path)\n#endif\n')
     # mingw 的 gc-sections 保留 book_title.c 的 nvs 引用段，需要空实现；CI Linux 丢弃这些段。
     # mingw gc-sections keeps book_title.c's nvs sections; CI Linux drops them via gc-sections.
+    # 上游 unit 提供 nvs_open/get_blob/close；mingw 的 gc-sections 保留 book_title.c 的
+    # set/clear 段，其余 nvs 函数由 win32 桩源补齐；CI Linux 丢弃这些段不需要。
+    # The upstream unit defines nvs_open/get_blob/close; mingw keeps book_title.c's
+    # set/clear sections, so a win32 stub source fills the rest (CI Linux drops them).
     nvs_impl = Path(folder) / 'kiiko_nvs_stub.c'
     nvs_impl.write_text('#include "nvs.h"\n'
         '#if defined(_WIN32)\n'
-        'esp_err_t nvs_get_stats(const char*n,nvs_stats_t*s){(void)n;(void)s;return ESP_FAIL;}\n'
-        'esp_err_t nvs_open(const char*n,int r,nvs_handle_t*h){(void)n;(void)r;*h=0;return ESP_OK;}\n'
-        'void nvs_close(nvs_handle_t h){(void)h;}\n'
-        'esp_err_t nvs_get_blob(nvs_handle_t h,const char*k,void*d,size_t*l){(void)h;(void)k;(void)d;(void)l;return ESP_FAIL;}\n'
         'esp_err_t nvs_set_blob(nvs_handle_t h,const char*k,const void*d,size_t l){(void)h;(void)k;(void)d;(void)l;return ESP_FAIL;}\n'
         'esp_err_t nvs_get_str(nvs_handle_t h,const char*k,char*v,size_t*l){(void)h;(void)k;(void)v;(void)l;return ESP_FAIL;}\n'
         'esp_err_t nvs_set_str(nvs_handle_t h,const char*k,const char*v){(void)h;(void)k;(void)v;return ESP_FAIL;}\n'
@@ -187,9 +187,10 @@ with tempfile.TemporaryDirectory() as folder:
         'esp_err_t nvs_commit(nvs_handle_t h){(void)h;return ESP_OK;}\n'
         'esp_err_t nvs_get_u32(nvs_handle_t h,const char*k,uint32_t*v){(void)h;(void)k;(void)v;return ESP_FAIL;}\n'
         'esp_err_t nvs_set_u32(nvs_handle_t h,const char*k,uint32_t v){(void)h;(void)k;(void)v;return ESP_FAIL;}\n'
+        'esp_err_t nvs_get_stats(const char*n,nvs_stats_t*s){(void)n;(void)s;return ESP_FAIL;}\n'
         '#endif\n')
     nvs_obj = [nvs_impl] if sys.platform == 'win32' else []
-    subprocess.run(['cc','-std=gnu11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*gc,'-include',str(shim),'-I'+folder,'-Imain/book','-Imain/apps','-Itools/book_storage_stubs','-Itools/file_tree_stubs',str(c),'main/book/book_title.c','main/apps/file_tree.c',*nvs_obj,'-o',str(b)],cwd=root,check=True)
+    subprocess.run(['cc','-std=gnu11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*gc,'-include',str(shim),'-I'+folder,'-Imain/book','-Imain/apps','-Itools/book_storage_stubs','-Itools/file_tree_stubs',str(c),'main/book/book_title.c','main/apps/file_tree.c','-Icomponents/read_pico_search/include','components/read_pico_search/read_pico_search.c',*nvs_obj,'-o',str(b)],cwd=root,check=True)
     subprocess.run([str(b)],check=True)
     subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections',*gc,'-Imain/book','-Itools/book_storage_stubs','tools/book_name_host_test.c','main/book/book_title.c','-o',str(b)],cwd=root,check=True)
     subprocess.run([str(b)],check=True)

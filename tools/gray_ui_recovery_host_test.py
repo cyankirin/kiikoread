@@ -21,6 +21,10 @@ u+=r'''
 #include "epd_highlevel.h"
 #include "display_reader_waveform.h"
 const EpdWaveform *display_reader_gray_waveform(display_reader_gray_profile_t profile){(void)profile;return &E0470_WAVEFORM;}
+const EpdWaveform *display_reader_ripple_waveform(display_reader_gray_profile_t profile){(void)profile;return &E0470_WAVEFORM;}
+/* rc110 的 display.c 走带节奏的四带水波纹路径；本测试不校验节奏细节，转交 page_turn 桩。*/
+/* rc110's display.c routes a paced four-band ripple; this probe does not pin the pacing.*/
+enum EpdDrawError e0470_reader_ripple_with_waveform_timed(EpdiyHighlevelState*h,EpdRect area,e0470_turn_dir_t d,const EpdWaveform*w,unsigned bands,unsigned ticks){(void)bands;(void)ticks;return e0470_page_turn_with_waveform_compact(h,area,d,w,4);}
 const EpdWaveform *display_settings_scroll_waveform(void){return &soft_gray;}
 const EpdWaveform *display_settings_scroll_lower_waveform(void){return &soft_gray;}
 const char *app_settings_book_background_path(void){return "";}

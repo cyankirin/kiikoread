@@ -97,6 +97,8 @@ unit+='// Upstream added a save-failure notice and a "came from the shelf manage
 unit+='// slices the real finish function, so only its outside symbols are stubbed here.\n'
 unit+='static char s_notice[96] __attribute__((unused));\n'
 unit+='static bool s_shelf_style_from_manage __attribute__((unused));\n'
+unit+='static bool s_import_candidates,s_library_setup_pending __attribute__((unused));\n'
+
 unit+='static void app_book_return_from_shelf_style(void){}\n'
 unit+='typedef struct app_ctx_s{bool request_return;void *request_app;} app_ctx_t;\n'
 unit+='// 上游的列表拖动接管入口：本探针只验证离散一步，返回 false 表示不接管。\n'

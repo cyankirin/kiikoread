@@ -7,6 +7,7 @@ English: Extract real static helpers without linking hardware page dependencies.
 """
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 source = Path(__file__).resolve().parents[1] / "main/apps/app_book.c"
@@ -81,6 +82,8 @@ static ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame){
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 #define ESP_LOGI(...) ((void)0)
+#define ESP_LOGW(...) ((void)0)
+#define TAG "book_ui_test"
 typedef int esp_err_t;
 typedef struct app_desc {int unused;} app_desc_t;
 typedef struct {bool touched;} test_touch_t;
@@ -91,7 +94,7 @@ static EpdRect ui_bar_rect(int i,int count){int width=(508-(count-1)*12)/count;r
 enum {UI_PAGER_NONE=-1,UI_PAGER_FIRST,UI_PAGER_PREVIOUS,UI_PAGER_NEXT,UI_PAGER_LAST};
 static EpdRect ui_pager_rect(int i){return (EpdRect){40+i*140,1004,100,70};}
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
-typedef struct {char name[256],author[128],path[288];uint32_t size;int64_t modified;bool cover_identity_known;uint16_t chapter,chapters;bool chapters_checked, is_flash,has_progress;uint8_t pct;uint32_t recent;uint64_t added;bool selected,removed,search_match,favorite;} shelf_entry_t;
+typedef struct {char name[256],author[128],path[288];uint32_t size;int64_t modified;bool cover_identity_known;uint16_t chapter,chapters;bool chapters_checked, is_flash,has_progress;uint8_t pct;uint32_t recent;uint64_t added;bool selected,removed,search_match,favorite,shelved,is_dir;} shelf_entry_t;
 #define BOOK_ROWS 13
 #define BOOK_GRID_ROWS 9
 #define BOOK_BULK_ROWS 5
@@ -306,6 +309,10 @@ static void app_files_request_folder(int folder){(void)folder;}
 static int s_pressed_control;
 static bool s_shelf_feedback_pending,s_shelf_page_pending,s_cover_batch_present_pending;
 static bool s_scan_pending,s_toolbar;
+/* rc110 extracted helpers reference these app_book.c statics. */
+static int64_t s_resume_media_deadline_ms;
+static bool s_import_candidates,s_library_setup_pending;
+static bool s_manage_books,s_rescan_prompt,s_import_all_pending,s_import_return_bulk,s_manage_files_return;
 static uint32_t s_progress_revision;
 static uint32_t test_progress_revision=1;
 static uint32_t book_progress_revision(void){return test_progress_revision;}
@@ -462,6 +469,11 @@ import re
 settings_source = source.parents[1] / 'settings.c'
 settings_header = source.parents[1] / 'settings.h'
 unit += re.search(r'^#define APP_BOOK_PARAGRAPH_COUNT \d+', settings_header.read_text(), re.M)[0] + '\n'
+# rc110 把段落字号范围搬到 book_font_size.h 且允许负值；抽取体引用 MIN/STEP，这里一并带上。
+# rc110 moved the paragraph range to book_font_size.h with negative values; the excerpts
+# reference MIN/STEP, so restate them alongside the count.
+font_size_header = source.parents[1] / 'book/book_font_size.h'
+unit += '\n'.join(l for l in font_size_header.read_text().splitlines() if l.startswith('#define BOOK_READER_PARAGRAPH_')) + '\n'
 unit+=r'''
 static int ui_nav_hit(int x,int y){return x>=0&&x<684&&y>=1096&&y<1216?x*4/684:-1;}
 '''
@@ -495,6 +507,55 @@ static void cover_lookup_cleanup(void){}
 static bool cover_lookup_resume(void){return false;}
 static void shelf_cache_save(void){}
 static bool shelf_cache_load(app_ctx_t *ctx,bool background){(void)ctx;(void)background;return false;}
+/* rc110: import-selection restore is not exercised by this probe. */
+static void library_restore_import_selection(void){}
+static int read_pico_name_compare(const char *a,const char *b){return strcmp(a,b);}
+/* rc110 book_library/book_import/book_directory: neutral stubs — this probe pins shelf layout, not library IO. */
+#define BOOK_LIBRARY_UNSET 0
+#define BOOK_LIBRARY_SELECTED 1
+#define BOOK_LIBRARY_ALL 2
+typedef int book_library_mode_t;
+#define BOOK_IMPORT_NONE 0
+#define BOOK_IMPORT_EXPLICIT 1
+#define BOOK_IMPORT_COVERED 2
+typedef int book_import_selection_t;
+#define BOOK_READER_LINE_MIN 100
+#define BOOK_READER_LINE_MAX 200
+#define BOOK_READER_LINE_COUNT (BOOK_READER_LINE_MAX-BOOK_READER_LINE_MIN+1)
+static bool book_library_contains(const char *p){(void)p;return false;}
+static esp_err_t book_library_begin_snapshot(void){return ESP_OK;}
+static esp_err_t book_library_add(const char *p){(void)p;return ESP_OK;}
+static esp_err_t book_library_commit(void){return ESP_OK;}
+static void book_library_abort(void){}
+static const char *book_library_error(void){return "";}
+static book_library_mode_t book_library_mode(void){return BOOK_LIBRARY_UNSET;}
+typedef bool (*book_library_visit_fn)(const char *path,void *context);
+static esp_err_t book_library_list(book_library_visit_fn visit,void *context){(void)visit;(void)context;return ESP_OK;}
+static bool book_display_name_from_path(const char *p,char *dst,size_t cap,char *author,size_t acap){(void)author;(void)acap;snprintf(dst,cap,"%s",p);return true;}
+static bool shelf_library_visit(const char *p,void *ctx){(void)p;(void)ctx;return true;}
+static bool library_remove_selected(void){return true;}
+static bool books_directory_is_root(void){return true;}
+static const char *books_directory_current(void){return "";}
+static app_redraw_t books_directory_open(app_ctx_t *ctx,const char *p){(void)ctx;(void)p;return APP_REDRAW_NONE;}
+static esp_err_t books_directory_up(app_ctx_t *ctx){(void)ctx;return ESP_OK;}
+static void library_filter_loaded(app_ctx_t *ctx){(void)ctx;}
+static app_redraw_t library_cancel_candidates(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static void library_scan_again(app_ctx_t *ctx){(void)ctx;}
+static app_redraw_t library_import_selected(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static void library_page_selection(app_ctx_t *ctx,bool all){(void)ctx;(void)all;}
+static app_redraw_t library_restart_import(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static app_redraw_t library_setup_action(app_ctx_t *ctx,int x,int y){(void)ctx;(void)x;(void)y;return APP_REDRAW_NONE;}
+static bool resume_media_wait(app_ctx_t *ctx){(void)ctx;return false;}
+static unsigned book_import_choice_count(void){return 0;}
+static void book_import_reset(void){}
+static bool book_import_running(void){return false;}
+static book_import_selection_t book_import_selection(const char *p){(void)p;return BOOK_IMPORT_NONE;}
+static esp_err_t book_import_select(const char *p,bool dir,bool selected){(void)p;(void)dir;(void)selected;return ESP_OK;}
+static app_redraw_t bulk_return_shelf(app_ctx_t *ctx){(void)ctx;s_view=SHELF;return APP_REDRAW_PAGE;}
+static bool app_files_request_book_action(const char *p,bool move){(void)p;(void)move;return false;}
+static bool app_settings_try_book_layout(uint8_t a,uint8_t b,int c,int d){(void)a;(void)b;(void)c;(void)d;return false;}
+static bool s_editor_from_bulk,s_lock_reader_reopen;
+static char s_lock_reader_path[288],s_manage_dir[288];
 static void rc_pause_auto(void){}
 static void rc_stop_auto(void){}
 static void rc_cancel_side(void){}
@@ -1167,8 +1228,23 @@ int main(void) {
 with tempfile.TemporaryDirectory() as tmp:
     c = Path(tmp) / "test.c"
     exe = Path(tmp) / "test"
-    c.write_text(unit, encoding="utf-8")
+    emitted = unit
+    if sys.platform == 'win32':
+        # mingw's dirent lacks d_type; evaluate the file-type check via stat instead.
+        emitted = emitted.replace('ent->d_type==DT_REG', 'stat(path,&win_sbuf)==0&&S_ISREG(win_sbuf.st_mode)')
+        emitted = 'static struct stat win_sbuf;\n' + emitted
+    c.write_text(emitted, encoding="utf-8")
+    # mingw has no dirent.d_type/DT_REG and a single-arg mkdir; CI Linux uses the POSIX forms.
+    shim = Path(tmp) / "win_dirent_shim.h"
+    shim.write_text('#if defined(_WIN32)\n'
+                    '#include <sys/stat.h>\n'
+                    '#include <direct.h>\n'
+                    '#define DT_REG 8\n'
+                    '#define mkdir(path,mode) _mkdir(path)\n'
+                    '#endif\n')
     subprocess.run(["cc", "-std=c11", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable",
-                    "-Wno-unused-function", "-fsanitize=address,undefined", "-I", str(source.parents[1] / "ui"), "-I", str(source.parents[1] / "book"),
+                    "-Wno-unused-function", "-Wno-format-truncation", "-Wno-restrict",
+                    "-fsanitize=address,undefined", "-include", str(shim),
+                    "-I", str(source.parents[1] / "ui"), "-I", str(source.parents[1] / "book"),
                     str(c), str(source.parents[1] / "ui/ui_text_edit.c"), "-o", str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
