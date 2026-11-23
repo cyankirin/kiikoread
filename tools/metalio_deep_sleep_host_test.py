@@ -33,6 +33,8 @@ static uint8_t outputs[2]={0x20,0x14},latches[2],config[2];
 static bool paused,usb,transfer_busy,ble_failed,deep_success;
 static void *s_lock_sleep_touch;
 static bool s_lock_io_pending,s_lock_io_no_media,deep_pins,deep_rails,deep_touch;
+/* rc110 lock_power_off consults the deep-ready resume checkpoint. */
+static bool s_lock_deep_ready;
 static int hardware_error;static bool late_usb;
 #define CST836U_MODE_DEEPSLEEP 3
 static unsigned network_resumes;

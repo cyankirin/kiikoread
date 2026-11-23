@@ -844,6 +844,7 @@ int main(void) {
     shelf_entry_t b={.search_match=true,.name="Same.txt",.path="/sdcard/books/B/Same.txt"};
     assert(compare_books(&a,&b)<0);
     b.recent=10;s_recent_sort=true;s_shelf_order=1;assert(compare_books(&a,&b)>0);
+    // rc110 dropped the favourite-first shortcut: same name now falls back to path order.
     s_recent_sort=false;s_shelf_order=0;a.favorite=true;
     for(int style=1;style<=4;style++){test_shelf_style=style;assert(compare_books(&a,&b)<0);}
     s_recent_sort=true;s_shelf_order=1;assert(compare_books(&a,&b)<0);s_recent_sort=false;s_shelf_order=0;test_shelf_style=0;
