@@ -554,7 +554,7 @@ static book_import_selection_t book_import_selection(const char *p){(void)p;retu
 static esp_err_t book_import_select(const char *p,bool dir,bool selected){(void)p;(void)dir;(void)selected;return ESP_OK;}
 static app_redraw_t bulk_return_shelf(app_ctx_t *ctx){(void)ctx;s_view=SHELF;return APP_REDRAW_PAGE;}
 static bool app_files_request_book_action(const char *p,bool move){(void)p;(void)move;return false;}
-static bool app_settings_try_book_layout(uint8_t a,uint8_t b,int c,int d){(void)a;(void)b;(void)c;(void)d;return false;}
+static bool app_settings_try_book_layout(uint8_t a,uint8_t b,int c,int d){(void)a;(void)b;(void)d;return c>=BOOK_READER_LINE_MIN&&c<=BOOK_READER_LINE_MAX;}
 static bool s_editor_from_bulk,s_lock_reader_reopen;
 static char s_lock_reader_path[288],s_manage_dir[288];
 static void rc_pause_auto(void){}

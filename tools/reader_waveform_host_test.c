@@ -10,6 +10,8 @@
 #include "e0470_epaper_waveform.h"
 
 static enum EpdRotation test_rotation;
+/* rc110: board waveform source consults low-ghost settings; neutral for this probe. */
+bool app_settings_low_ghost(void){return false;}
 int epd_width(void) { return 1216; }
 int epd_height(void) { return 684; }
 enum EpdRotation epd_get_rotation(void) { return test_rotation; }
