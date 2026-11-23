@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc118.01",
+  "version": "0.3.3-rc118.02",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "0.3.3-rc98",
-  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.01.bin",
-  "size": 4786368,
-  "sha256": "25ce4901e6c7e1e163209a86ecc4a3bad38ea01891fc8e8cd5a219632642badd",
-  "notes": "合并官方 S31 RC118 基线（Anki 版）：书架按真实文件夹管理、列表 13 项与封面 4×3；水波纹恢复 RC110 擦白顺序；设置新增低残影与 12 小时制。官方修复随基线带入，Anki 导入/续学/进度备份保留。"
+  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.02.bin",
+  "size": 4786688,
+  "sha256": "c3151ac0a65228a5484667e6965902119ed0d7f4942b7da9c928fc23047be316",
+  "notes": "官方 S31 RC118 基线（Anki 版）修复休眠唤醒后概率性字库失效：唤醒字体重开失败不再拖住媒体状态，改为按路径重载并容忍时间戳漂移，TF 字体失败后自动重试无需重启。书架按真实文件夹管理，水波纹恢复 RC110 顺序。"
 }

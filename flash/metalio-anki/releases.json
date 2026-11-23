@@ -1,32 +1,32 @@
 {
   "schema": 1,
-  "previous_version": "0.3.3-rc114.02",
+  "previous_version": "0.3.3-rc118.01",
   "releases": [
     {
-      "version": "0.3.3-rc114.02",
-      "manifest": "metalio-anki/releases/0.3.3-rc114.02/manifest.json",
-      "bin": "Metalio-S31-update-0.3.3-rc114.02.bin",
-      "source_commit": "7532469f6ab87c27642293508868c37283b6f52b",
+      "version": "0.3.3-rc118.01",
+      "manifest": "metalio-anki/releases/0.3.3-rc118.01/manifest.json",
+      "bin": "Metalio-S31-update-0.3.3-rc118.01.bin",
+      "source_commit": "93d76daa9571fe0d1ddbabe879d3834249f7c5d7",
       "files": {
         "bootloader.bin": {
-          "size": 22448,
-          "sha256": "4113dfc7af687c28f9717a26b429acdbde6a418c2746988a16a8ef723d83513a"
+          "size": 24112,
+          "sha256": "92bc301c5abfc5f315583b0791827a2a3b0ebb775b7425470637469949d7b5e1"
         },
         "partitions.bin": {
           "size": 3072,
           "sha256": "6a5500c826a7957e06233d2a580e8378106ce88a31db2857ccb5333a3c5f84bc"
         },
         "firmware.bin": {
-          "size": 5237328,
-          "sha256": "1643e26db7232c3952bb8eb3ce424135edf6f101dfff988cf558f90e45d421d7"
+          "size": 4786368,
+          "sha256": "25ce4901e6c7e1e163209a86ecc4a3bad38ea01891fc8e8cd5a219632642badd"
         },
         "ota_data_initial.bin": {
           "size": 8192,
           "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
         }
       },
-      "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.02/kiikoread-metalio47-0.3.3-rc114.02-USB.zip",
-      "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc114.02/kiikoread-metalio47-0.3.3-rc114.02-TF.zip"
+      "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.01/kiikoread-metalio47-0.3.3-rc118.01-USB.zip",
+      "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.01/kiikoread-metalio47-0.3.3-rc118.01-TF.zip"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "Metalio 4.7 V1.5",
-  "version": "0.3.3-rc118.01",
+  "version": "0.3.3-rc118.02",
   "board": "metalio47",
   "experimental_pie_pixels": true,
   "experimental_text_ripple": true,
@@ -26,7 +26,7 @@
           "path": "bootloader.bin",
           "offset": 8192,
           "size": 24112,
-          "sha256": "92bc301c5abfc5f315583b0791827a2a3b0ebb775b7425470637469949d7b5e1"
+          "sha256": "6e0b4b7512ea6fce3157fdafd5eb047a0626db207ebe8efb7b816da5cbfda3f9"
         },
         {
           "path": "partitions.bin",
@@ -37,8 +37,8 @@
         {
           "path": "firmware.bin",
           "offset": 65536,
-          "size": 4786368,
-          "sha256": "25ce4901e6c7e1e163209a86ecc4a3bad38ea01891fc8e8cd5a219632642badd"
+          "size": 4786688,
+          "sha256": "c3151ac0a65228a5484667e6965902119ed0d7f4942b7da9c928fc23047be316"
         },
         {
           "path": "ota_data_initial.bin",
@@ -49,22 +49,22 @@
       ]
     }
   ],
-  "updated_at": "2026-11-23T21:55:00+08:00",
+  "updated_at": "2026-11-23T23:20:00+08:00",
   "pico_ota": {
     "layout": "metalio-s31-dual-5m-v1",
-    "base_version": "0.3.3-rc118.01",
+    "base_version": "0.3.3-rc118.02",
     "minimum_base_version": "0.3.3-rc98",
     "online_ota_base_version": "0.3.3-rc98",
     "rollback": true
   },
-  "previous_version": "0.3.3-rc114.02",
-  "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.01/kiikoread-metalio47-0.3.3-rc118.01-USB.zip",
-  "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.01/kiikoread-metalio47-0.3.3-rc118.01-TF.zip",
+  "previous_version": "0.3.3-rc118.01",
+  "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.02/kiikoread-metalio47-0.3.3-rc118.02-USB.zip",
+  "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.02/kiikoread-metalio47-0.3.3-rc118.02-TF.zip",
   "release_notes": [
-    "合并官方 S31 RC118 基线：书架按真实文件夹管理，列表 13 项、封面 4×3，支持全选/取消。",
-    "阅读水波纹恢复 S31 RC110 的擦白顺序与八条带节奏，保留正文裁剪与失败恢复。",
-    "设置新增低残影模式与 12 小时制；首页图标压缩释放 app 分区空间。",
+    "修复休眠唤醒后概率性字库失效：唤醒时字体句柄重开失败不再拖住全局媒体状态，改为按路径整表重载；FAT 重挂时间戳漂移不再作废已选字体。",
+    "读取卡内 TF 字体失败后保留原选择，不再静默回退内置字体；SD 卡已就绪时会清掉遗留挂起状态并继续重试，无需重启。",
+    "合并官方 S31 RC118 基线：书架按真实文件夹管理、列表 13 项与封面 4×3；水波纹恢复 RC110 擦白顺序；设置新增低残影与 12 小时制。",
     "官方修复随基线带入，Anki 导入/续学/进度备份保留。",
-    "本版带新引导程序，完整初装请用网页 USB 安装，TF/OTA 仅更新应用。"
+    "本版沿用 RC118 引导程序，完整初装用网页 USB 安装，TF/OTA 仅更新应用。"
   ]
 }
