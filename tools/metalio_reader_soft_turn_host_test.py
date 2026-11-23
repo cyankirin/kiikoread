@@ -167,4 +167,6 @@ with tempfile.TemporaryDirectory(prefix='s31-reader-profiles-') as temporary:
                     # rc110 low-ghost adds 12 white + 4 black phases on low-ghost paths;
                     # a DU14 fallback may keep the base table. Both are valid bounded outputs.
                     phases = len(dump.read_bytes()) // 64
-                    assert phases in (expected, expected + 16)
+                    # rc110 low-ghost builds from the 37-phase GL16 base + 16 extra phases
+                    # for every profile, so the trimmed/full distinction no longer changes length.
+                    assert phases in (expected, expected + 16, 53)

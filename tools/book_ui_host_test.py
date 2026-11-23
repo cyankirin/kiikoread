@@ -847,7 +847,8 @@ int main(void) {
     // rc110 dropped the favourite-first shortcut: same name now falls back to path order.
     s_recent_sort=false;s_shelf_order=0;a.favorite=true;
     for(int style=1;style<=4;style++){test_shelf_style=style;assert(compare_books(&a,&b)<0);}
-    s_recent_sort=true;s_shelf_order=1;assert(compare_books(&a,&b)<0);s_recent_sort=false;s_shelf_order=0;test_shelf_style=0;
+    // rc110 recent sort ignores the favourite flag (b has recent=10), so b leads under desc order.
+    s_recent_sort=true;s_shelf_order=1;assert(compare_books(&a,&b)>0);s_recent_sort=false;s_shelf_order=0;test_shelf_style=0;
     a.favorite=false;a.recent=10;b.recent=20;a.added=100;b.added=200;
     strcpy(a.name,"Zulu");strcpy(b.name,"Alpha");
     int expected[]={1,1,-1,-1,-1,1};
