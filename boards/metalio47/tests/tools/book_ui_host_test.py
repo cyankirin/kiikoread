@@ -548,6 +548,35 @@ static app_redraw_t cover_lookup_back(void){s_view=BULK;return APP_REDRAW_PAGE;}
 static app_redraw_t cover_lookup_page(int direction){(void)direction;return APP_REDRAW_NONE;}
 static void cover_lookup_cleanup(void){}
 static bool cover_lookup_resume(void){return false;}
+/* rc118 批量视图引用的目录/导入助手：本探针只钉书架与批量几何，I/O 语义中性。 */
+/* rc118 bulk-view directory/import helpers: geometry probe only, neutral I/O behaviour. */
+static bool books_directory_is_root(void){return true;}
+static const char *books_directory_current(void){return "/sdcard/Books";}
+static app_redraw_t books_directory_open(app_ctx_t *ctx,const char *p){(void)ctx;(void)p;return APP_REDRAW_NONE;}
+static app_redraw_t books_directory_up(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static app_redraw_t library_cancel_candidates(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static app_redraw_t library_open_candidates(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static void library_scan_again(app_ctx_t *ctx){(void)ctx;}
+static void library_page_selection(app_ctx_t *ctx,bool all){(void)ctx;(void)all;}
+static bool library_remove_selected(void){return true;}
+static app_redraw_t library_import_selected(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static app_redraw_t library_restart_import(app_ctx_t *ctx){(void)ctx;return APP_REDRAW_NONE;}
+static unsigned book_import_choice_count(void){return 0;}
+static bool book_import_running(void){return false;}
+static void book_import_reset(void){}
+static book_import_selection_t book_import_selection(const char *p){(void)p;return BOOK_IMPORT_NONE;}
+static esp_err_t book_import_select(const char *p,bool dir,bool selected){(void)p;(void)dir;(void)selected;return ESP_OK;}
+static char s_manage_dir[256];
+static bool s_editor_from_bulk;
+static bool app_files_request_book_action(const char *p,bool move){(void)p;(void)move;return true;}
+static app_redraw_t bulk_return_shelf(app_ctx_t *ctx){(void)ctx;s_view=SHELF;return APP_REDRAW_PAGE;}
+static app_redraw_t library_setup_action(app_ctx_t *ctx,int x,int y){(void)ctx;(void)x;(void)y;return APP_REDRAW_NONE;}
+static char s_lock_reader_path[256];
+static bool s_lock_reader_fullscreen,s_lock_reader_reopen;
+static bool resume_media_wait(app_ctx_t *ctx){(void)ctx;return false;}
+static void library_filter_loaded(app_ctx_t *ctx){(void)ctx;}
+static bool app_settings_try_book_layout(uint8_t px,uint8_t margin,int line,int paragraph){(void)px;(void)paragraph;if(line<BOOK_READER_LINE_MIN||line>BOOK_READER_LINE_MAX)return false;test_saved_margin=margin;return true;}
+const app_desc_t app_files={0};
 """
 # 书架扫描中断判定与排队打开：抽取真实实现，供 scan_shelf_dir/scan_shelf/断言使用。
 # Extract the real scan-interruption guards and queued-open helpers.
@@ -722,8 +751,8 @@ int main(void) {
     shelf_entry_t a={.search_match=true,.name="Same.txt",.path="/sdcard/books/A/Same.txt"};
     shelf_entry_t b={.search_match=true,.name="Same.txt",.path="/sdcard/books/B/Same.txt"};
     assert(compare_books(&a,&b)<0);
-    b.recent=10;s_recent_sort=true;assert(compare_books(&a,&b)>0);
-    s_recent_sort=false;a.favorite=true;
+    b.recent=10;s_shelf_order=1;s_recent_sort=true;assert(compare_books(&a,&b)>0);
+    s_recent_sort=false;s_shelf_order=0;a.favorite=true;
     for(int style=1;style<=4;style++){test_shelf_style=style;assert(compare_books(&a,&b)<0);}
     s_recent_sort=true;assert(compare_books(&a,&b)<0);s_recent_sort=false;test_shelf_style=0;
     a.favorite=false;a.recent=10;b.recent=20;a.added=100;b.added=200;
@@ -816,10 +845,11 @@ int main(void) {
     EpdRect entry=row_rect(0),hit;
     assert(bulk_control_at(&ctx,entry.x+10,entry.y+10,&hit)==0);
     int opening_calls=test_open_calls;
-    /*rc116 起书架/批量打开改为排队：先入队，再由 open_requested_book 消费。*/
-    /*Since rc116 shelf/bulk opens queue; open_requested_book consumes the request.*/
-    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_NONE&&s_shelf_open_queued&&s_view==BULK);
-    assert(open_requested_book(&ctx)&&s_view==READING&&test_open_calls==opening_calls+1&&!selected_count());
+    /* 批量视图里点书就是勾选；开书走书架视图的排队入口。 */
+    /* In the bulk view a tap selects the row; opening goes through the shelf queue. */
+    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_PAGE&&s_bulk_selecting&&selected_count()==1&&s_view==BULK);
+    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_PAGE&&!selected_count());
+    s_bulk_selecting=false;
     s_view=BULK;
     EpdRect hidden_action=batch_rect(3);
     assert(batch_action(&ctx,hidden_action.x+10,hidden_action.y+10)==APP_REDRAW_NONE&&!s_batch_confirm);
@@ -846,8 +876,9 @@ int main(void) {
     assert(bulk_select_row(&ctx,0)==APP_REDRAW_NONE);
     EpdRect batch_cancel=ui_row_rect(0,2,620,UI_BTN_H);
     assert(bulk_action(&ctx,batch_cancel.x+10,batch_cancel.y+10)==APP_REDRAW_PAGE&&!s_batch_confirm&&selected_count()==2);
-    EpdRect finish=batch_rect(6);
-    assert(bulk_action(&ctx,finish.x+10,finish.y+10)==APP_REDRAW_PAGE&&!s_bulk_selecting&&!selected_count()&&s_view==BULK);
+    EpdRect finish=batch_rect(6);/*rc118：batch_rect(6) 是“导入”；“完成”在底栏（下一行）*/
+    assert(bulk_control_at(&ctx,finish.x+10,finish.y+10,&hit)==616);
+    assert(bulk_action(&ctx,finish.x+10,finish.y+10)==APP_REDRAW_NONE&&selected_count()==2&&s_view==BULK);
     assert(bulk_action(&ctx,250,1150)==APP_REDRAW_FULL);
     assert(s_view==SHELF&&!selected_count()&&!ctx.request_menu&&ctx.leaf==6);
     s_view=BULK;ctx.leaf=0;s_bulk_selecting=false;

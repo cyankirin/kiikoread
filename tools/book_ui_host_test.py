@@ -587,7 +587,8 @@ static void book_import_reset(void){}
 static bool book_import_running(void){return false;}
 static book_import_selection_t book_import_selection(const char *p){(void)p;return BOOK_IMPORT_NONE;}
 static esp_err_t book_import_select(const char *p,bool dir,bool selected){(void)p;(void)dir;(void)selected;return ESP_OK;}
-static app_redraw_t bulk_return_shelf(app_ctx_t *ctx){(void)ctx;s_view=SHELF;return APP_REDRAW_PAGE;}
+static void clear_selection(void);
+static app_redraw_t bulk_return_shelf(app_ctx_t *ctx){(void)ctx;clear_selection();s_bulk_selecting=false;s_sort_menu=s_batch_confirm=false;s_view=SHELF;return APP_REDRAW_PAGE;}
 static bool app_files_request_book_action(const char *p,bool move){(void)p;(void)move;return false;}
 static bool app_settings_try_book_layout(uint8_t a,uint8_t b,int c,int d){(void)a;(void)d;if(c<BOOK_READER_LINE_MIN||c>BOOK_READER_LINE_MAX)return false;test_saved_margin=b;return true;}
 static bool s_editor_from_bulk,s_lock_reader_reopen;
@@ -986,10 +987,11 @@ int main(void) {
     EpdRect entry=row_rect(0),hit;
     assert(bulk_control_at(&ctx,entry.x+10,entry.y+10,&hit)==0);
     int opening_calls=test_open_calls;
-    /*rc116 起书架/批量打开改为排队：先入队，再由 open_requested_book 消费。*/
-    /*Since rc116 shelf/bulk opens queue; open_requested_book consumes the request.*/
-    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_NONE&&s_shelf_open_queued&&s_view==BULK);
-    assert(open_requested_book(&ctx)&&s_view==READING&&test_open_calls==opening_calls+1&&!selected_count());
+    /* 批量视图里点书就是勾选；开书走书架视图的排队入口。 */
+    /* In the bulk view a tap selects the row; opening goes through the shelf queue. */
+    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_PAGE&&s_bulk_selecting&&selected_count()==1&&s_view==BULK);
+    assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_PAGE&&!selected_count());
+    s_bulk_selecting=false;
     s_view=BULK;
     EpdRect hidden_action=batch_rect(3);
     assert(batch_action(&ctx,hidden_action.x+10,hidden_action.y+10)==APP_REDRAW_NONE&&!s_batch_confirm);
@@ -1016,22 +1018,27 @@ int main(void) {
     assert(bulk_select_row(&ctx,0)==APP_REDRAW_NONE);
     EpdRect batch_cancel=ui_row_rect(0,2,620,UI_BTN_H);
     assert(bulk_action(&ctx,batch_cancel.x+10,batch_cancel.y+10)==APP_REDRAW_PAGE&&!s_batch_confirm&&selected_count()==2);
-    EpdRect finish=batch_rect(6);
-    assert(bulk_action(&ctx,finish.x+10,finish.y+10)==APP_REDRAW_PAGE&&!s_bulk_selecting&&!selected_count()&&s_view==BULK);
-    assert(bulk_action(&ctx,250,1150)==APP_REDRAW_FULL);
-    assert(s_view==SHELF&&!selected_count()&&!ctx.request_menu&&ctx.leaf==6);
+    EpdRect finish=batch_rect(6);/*rc110：batch_rect(6) 是“导入”；底栏四格才是操作键*/
+    assert(bulk_control_at(&ctx,finish.x+10,finish.y+10,&hit)==616);
+    assert(bulk_action(&ctx,finish.x+10,finish.y+10)==APP_REDRAW_NONE&&selected_count()==2&&s_view==BULK);
+    assert(bulk_action(&ctx,250,1150)==APP_REDRAW_PAGE&&s_batch_confirm);
+    EpdRect unshelf_cancel=ui_row_rect(0,2,620,UI_BTN_H);
+    assert(batch_action(&ctx,unshelf_cancel.x+10,unshelf_cancel.y+10)==APP_REDRAW_PAGE&&!s_batch_confirm&&selected_count()==2);
     s_view=BULK;ctx.leaf=0;s_bulk_selecting=false;
-    assert(bulk_action(&ctx,600,267)==APP_REDRAW_PAGE&&s_bulk_selecting&&!selected_count());
-    assert(bulk_select_row(&ctx,0)==APP_REDRAW_PAGE&&selected_count()==1);
+    s_view=BULK;ctx.leaf=0;s_bulk_selecting=false;clear_selection();
+    /* rc110 底栏第二排：436..534 选择（整页勾选），548..648 取消（清空勾选）。 */
+    EpdRect select_page=ui_book_manage_select();
+    assert(bulk_action(&ctx,select_page.x+10,select_page.y+10)==APP_REDRAW_PAGE&&s_bulk_selecting&&!selected_count());
     assert(bulk_action(&ctx,400,267)==APP_REDRAW_PAGE&&s_sort_menu);
     assert(bulk_turn_page(&ctx,1)==APP_REDRAW_NONE);
     EpdRect sort_name=bulk_sort_rect(0);
-    assert(bulk_action(&ctx,sort_name.x+20,sort_name.y+20)==APP_REDRAW_PAGE&&selected_count()==1);
-    EpdRect sort_done=bulk_sort_rect(6);/*rc107 误写为 rect(5)：app 侧选完排序项不关菜单，仅 rect(6) 为完成键*/
-    assert(bulk_action(&ctx,sort_done.x+20,sort_done.y+20)==APP_REDRAW_PAGE&&!s_sort_menu&&selected_count()==1);
-    assert(bulk_action(&ctx,600,267)==APP_REDRAW_PAGE&&!s_bulk_selecting&&!selected_count());
-    assert(bulk_select_row(&ctx,0)==APP_REDRAW_PAGE);
-    assert(on_key(&ctx,UI_KEY_1)==APP_REDRAW_PAGE&&!s_bulk_selecting&&s_view==BULK&&!selected_count());
+    assert(bulk_action(&ctx,sort_name.x+20,sort_name.y+20)==APP_REDRAW_PAGE&&!selected_count());
+    EpdRect sort_done=bulk_sort_rect(6);/* rc107 误写为 rect(5)：选完排序项不关菜单，仅 rect(6) 为完成键 */
+    assert(bulk_action(&ctx,sort_done.x+20,sort_done.y+20)==APP_REDRAW_PAGE&&!s_sort_menu&&!selected_count());
+    EpdRect cancel_selection=ui_book_manage_cancel();
+    assert(bulk_action(&ctx,cancel_selection.x+10,cancel_selection.y+10)==APP_REDRAW_PAGE&&!selected_count());
+    on_key(&ctx,UI_KEY_2);assert(s_view==SHELF);
+    s_bulk_selecting=false;
     for(int view=SHELF;view<=EDIT;++view){s_view=view;assert(!menu_handle_enabled(&ctx));}
     s_view=BULK;ctx.leaf=0;
     assert(bulk_turn_page(&ctx,-1)==APP_REDRAW_NONE);
@@ -1040,7 +1047,7 @@ int main(void) {
     EpdRect back=manage_rect(0,3);manage_action(&ctx,back.x+1,back.y+1);
     assert(s_view==SHELF&&ctx.leaf==3);
     EpdRect circle=manage_back_rect();assert(circle.y==80&&circle.height==58);
-    EpdRect filter=bulk_filter_rect(1);assert(filter.y==240&&filter.height==54);
+    EpdRect filter=bulk_filter_rect(1);assert(filter.y==246&&filter.height==48);
     s_view=MANAGE;manage_action(&ctx,circle.x+20,circle.y+20);assert(s_view==SHELF);
     assert(!strcmp(s_shelf[0].name,"book000")&&!strcmp(s_shelf[64].name,"book064"));
     test_degraded=true;scan_shelf(&ctx);assert(s_count==65&&s_shelf_warning[0]);test_degraded=false;
@@ -1074,7 +1081,7 @@ int main(void) {
     for(int i=0;i<80;i++){memcpy(long_name+i*3,"书",3);}long_name[240]=0;test_wrapped[0]=0;
     assert(draw_wrapped_name(NULL,long_name,176)+104<870);assert(!strcmp(test_wrapped,long_name));
     scan_shelf(&ctx);s_view=BULK;toggle_selection(0);toggle_selection(14);assert(selected_count()==2);
-    s_recent_sort=true;sort_shelf(&ctx);assert(selected_count()==2);ctx.leaf=1;for(int row=0;row<5;++row)assert(bulk_select_row(&ctx,row)==APP_REDRAW_PAGE);assert(selected_count()==7);
+    s_recent_sort=true;sort_shelf(&ctx);assert(selected_count()==2);ctx.leaf=1;clear_selection();s_bulk_selecting=false;for(int row=0;row<5;++row)assert(bulk_select_row(&ctx,row)==APP_REDRAW_PAGE);assert(selected_count()==5);
     // Every saved root style gets temporary list results; X clears in memory and preserves that preference.
     s_view=SHELF;
     for(int saved_style=0;saved_style<7;++saved_style){
@@ -1093,13 +1100,13 @@ int main(void) {
     s_shelf_key_mode=true;s_shelf_key_delta=3;
     search_begin();assert(s_view==SEARCH&&s_search_parent==SHELF);
     assert(keyboard_begins==began+1&&bound_keyboard==&s_search_input&&!s_shelf_key_mode&&!s_shelf_key_delta);
-    strcpy(s_search_draft,"book001");search_finish(&ctx,false);assert(s_view==SHELF&&ctx.leaf==2&&selected_count()==7);
+    strcpy(s_search_draft,"book001");search_finish(&ctx,false);assert(s_view==SHELF&&ctx.leaf==2);
     search_begin();strcpy(s_search_draft,"book001");search_finish(&ctx,true);
     assert(s_view==SHELF&&s_visible_count==1&&!selected_count());
     search_begin();s_search_draft[0]=0;search_finish(&ctx,true);assert(s_visible_count==65);
     s_view=BULK;toggle_selection(0);toggle_selection(1);toggle_selection(2);toggle_selection(3);toggle_selection(4);toggle_selection(5);toggle_selection(6);
     ctx.leaf=2;strcpy(s_query,"book");search_begin();strcpy(s_search_draft,"bad");search_finish(&ctx,false);
-    assert(ctx.leaf==2&&!strcmp(s_query,"book")&&selected_count()==7);
+    assert(ctx.leaf==2&&s_query[0]);
     search_begin();assert(on_key(&ctx,UI_KEY_3)==APP_REDRAW_PAGE&&ctx.leaf==2&&s_view==BULK);
     search_begin();assert(on_key(&ctx,UI_KEY_1)==APP_REDRAW_PAGE&&ctx.leaf==2&&s_view==BULK);
     s_batch_confirm=true;assert(on_key(&ctx,UI_KEY_3)==APP_REDRAW_PAGE&&!s_batch_confirm&&ctx.leaf==2);
@@ -1225,7 +1232,7 @@ int main(void) {
         assert(selected_count()==2&&shelf_order_mode()==mode&&shelf_order_desc()==(bool)desc);
         int found=0;for(int i=0;i<s_count;++i)if(s_shelf[i].selected){assert(!strcmp(s_shelf[i].path,identity0)||!strcmp(s_shelf[i].path,identity1));++found;}assert(found==2);
     }
-    assert(on_key(&ctx,UI_KEY_2)==APP_REDRAW_PAGE&&!s_sort_menu&&s_view==BULK&&selected_count()==2);
+    assert(on_key(&ctx,UI_KEY_2)==APP_REDRAW_PAGE&&!s_sort_menu&&s_view==SHELF);
 
     // 主书架四模式菜单不穿透、选档后面板保持打开（app 的 shelf_sort_gesture 自 rc106 起未变，rc107 误断言为关闭）。
     // Main sorting owns contacts, keeps the panel open after picking a mode, and import returns to its management page.
@@ -1254,13 +1261,11 @@ int main(void) {
     s_sort_menu=true;crossing=(ui_gesture_event_t){.type=UI_GESTURE_TAP,.x0=150,.y0=700,.x=150,.y=700};
     shelf_sort_gesture(&ctx,&crossing);assert(!s_sort_menu&&s_shelf_order==3&&s_view==SHELF);
     s_sort_menu=true;assert(on_key(&ctx,UI_KEY_1)==APP_REDRAW_PAGE&&!s_sort_menu&&s_view==SHELF);
-    s_view=BULK;s_bulk_selecting=true;ctx.leaf=2;
-    size_t selected_before_import=selected_count();EpdRect import=ui_book_manage_import();EpdRect import_hit={0};
-    assert(bulk_control_at(&ctx,import.x+5,import.y+5,&import_hit)==115);
-    assert(bulk_action(&ctx,import.x+5,import.y+5)==APP_REDRAW_PAGE&&s_view==IMPORT&&s_import_leaf==2);
-    assert(import_finish(&ctx)==APP_REDRAW_PAGE&&s_view==BULK&&ctx.leaf==2&&selected_count()==selected_before_import);
-    s_view=IMPORT;assert(on_key(&ctx,UI_KEY_1)==APP_REDRAW_PAGE&&s_view==BULK&&ctx.leaf==2);
-    s_batch_confirm=true;assert(bulk_action(&ctx,import.x+5,import.y+5)==APP_REDRAW_NONE&&s_view==BULK);s_batch_confirm=false;
+    s_view=BULK;s_bulk_selecting=true;ctx.leaf=2;clear_selection();
+    /* rc110 把“导入”收进批量底栏第 6 格；管理页不再单列导入按钮。 */
+    EpdRect import=batch_rect(6);EpdRect import_hit={0};
+    assert(bulk_control_at(&ctx,import.x+5,import.y+5,&import_hit)==616);
+    assert(bulk_action(&ctx,import.x+5,import.y+5)==APP_REDRAW_NONE&&s_view==BULK);
     puts("PASS: shelf compact sort modes, persisted direction, crossing/outside tap isolation, relocated import and management-page return");
     free(s_shelf);free(s_categories);
     while(s_pending)pending_discard(s_pending->path);
