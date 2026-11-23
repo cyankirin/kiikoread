@@ -451,6 +451,9 @@ import re
 settings_source = source.parents[1] / 'settings.c'
 settings_header = source.parents[1] / 'settings.h'
 unit += re.search(r'^#define APP_BOOK_PARAGRAPH_COUNT \d+', settings_header.read_text(), re.M)[0] + '\n'
+# rc110 moved the paragraph range to book_font_size.h; the excerpts reference MIN/STEP/MAX.
+font_size_header = source.parents[1] / 'book/book_font_size.h'
+unit += '\n'.join(l for l in font_size_header.read_text().splitlines() if l.startswith('#define BOOK_READER_PARAGRAPH_')) + '\n'
 unit+=r'''
 static int ui_nav_hit(int x,int y){return x>=0&&x<684&&y>=1096&&y<1216?x*4/684:-1;}
 '''

@@ -1242,8 +1242,10 @@ with tempfile.TemporaryDirectory() as tmp:
                     '#define DT_REG 8\n'
                     '#define mkdir(path,mode) _mkdir(path)\n'
                     '#endif\n')
+    # gcc-only warning switches: clang (CI) does not know -Wno-restrict / -Wno-format-truncation.
+    gcc_warnings = ["-Wno-format-truncation", "-Wno-restrict"] if sys.platform == 'win32' else []
     subprocess.run(["cc", "-std=c11", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable",
-                    "-Wno-unused-function", "-Wno-format-truncation", "-Wno-restrict",
+                    "-Wno-unused-function", *gcc_warnings,
                     "-fsanitize=address,undefined", "-include", str(shim),
                     "-I", str(source.parents[1] / "ui"), "-I", str(source.parents[1] / "book"),
                     str(c), str(source.parents[1] / "ui/ui_text_edit.c"), "-o", str(exe)], check=True)
