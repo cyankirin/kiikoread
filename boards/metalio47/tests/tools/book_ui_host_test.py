@@ -503,6 +503,30 @@ static bool book_weread_cover_metadata(const char *path,char *title,size_t title
 static bool app_settings_try_shelf_order(unsigned order){s_shelf_order=(uint8_t)order;return true;}
 /* 扫描函数体内的书签/缓存回写：宿主保留语义中性的最小实现。*/
 /* Bookmark/cache write-backs inside scan bodies: minimal, behaviour-neutral host stand-ins.*/
+/* rc110: import-selection restore is not exercised by this probe. */
+static void library_restore_import_selection(void){}
+static int read_pico_name_compare(const char *a,const char *b){return strcmp(a,b);}
+/* rc110 book_library/book_import/book_directory: neutral stubs — this probe pins shelf layout, not library IO. */
+#define BOOK_LIBRARY_UNSET 0
+#define BOOK_LIBRARY_SELECTED 1
+#define BOOK_LIBRARY_ALL 2
+typedef int book_library_mode_t;
+#define BOOK_IMPORT_NONE 0
+#define BOOK_IMPORT_EXPLICIT 1
+#define BOOK_IMPORT_COVERED 2
+typedef int book_import_selection_t;
+#define BOOK_READER_LINE_MIN 100
+#define BOOK_READER_LINE_MAX 200
+#define BOOK_READER_LINE_COUNT (BOOK_READER_LINE_MAX-BOOK_READER_LINE_MIN+1)
+static bool book_library_contains(const char *p){(void)p;return false;}
+static esp_err_t book_library_begin_snapshot(void){return ESP_OK;}
+static esp_err_t book_library_add(const char *p){(void)p;return ESP_OK;}
+static esp_err_t book_library_commit(void){return ESP_OK;}
+static void book_library_abort(void){}
+static const char *book_library_error(void){return "";}
+static book_library_mode_t book_library_mode(void){return BOOK_LIBRARY_UNSET;}
+typedef bool (*book_library_visit_fn)(const char *path,void *context);
+static esp_err_t book_library_list(book_library_visit_fn visit,void *context){(void)visit;(void)context;return ESP_OK;}
 static void shelf_cache_save(void){}
 static bool shelf_cache_load(app_ctx_t *ctx,bool background){(void)ctx;(void)background;return false;}
 static void reader_current_chapter(char *dst, size_t cap){(void)cap;dst[0]=0;}

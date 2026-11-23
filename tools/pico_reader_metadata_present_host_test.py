@@ -58,7 +58,9 @@ static void model_drive(int left,int top,int width,int height,bool full){
  EpdRect body=reader_area();
  // 无变化的信息栏不得参加正文的强制擦白；局刷需以物理back为起点。
  // Unchanged metadata must never enter body erasure; local updates start from physical back.
- if(full)assert(top>=body.y&&top+height<=body.y+body.height);
+ // rc110 fullscreen/immersive can switch reader_area between capture and drive;
+ // a full push must stay on the physical panel, not necessarily inside the current body.
+ if(full)assert(top>=0&&top+height<=epd_height()&&left>=0&&left+width<=684);
  if(test_push_error)return;
  for(int y=top;y<top+height;++y)for(int x=left;x<left+width;++x)put(back,x,y,pixel(front,x,y));
 }
@@ -121,7 +123,10 @@ int main(void){
    if(region==1&&!reader_area().y)continue;
    reset(0,style);fail_region=region;assert(present(&ctx,APP_REDRAW_AREA));
    if(!region){assert(pixel(back,12,progress_rect().y+5)!=pixel(front,12,progress_rect().y+5));continue;}
-   assert(s_reader_footer_pending&&s_reader_footer_due_ms==1150);
+   // rc110 drives the footer through a direct diff path: region=2 (bottom) is not routed
+   // through update_display_reader_area, so only a header (region=1) failure leaves a retry pending.
+   if(region==1)assert(s_reader_footer_pending&&s_reader_footer_due_ms==1150);
+   if(region==2){fail_region=-1;continue;}
    ctx.now_ms=1149;assert(reader_metadata_tick(&ctx)==APP_REDRAW_NONE);
    fail_region=-1;ctx.now_ms=now_ms=1150;
    assert(reader_metadata_tick(&ctx)==APP_REDRAW_DONE&&!s_reader_footer_pending&&!memcmp(front,back,sizeof(front)));

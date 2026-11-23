@@ -1228,7 +1228,9 @@ int main(void) {
 with tempfile.TemporaryDirectory() as tmp:
     c = Path(tmp) / "test.c"
     exe = Path(tmp) / "test"
-    emitted = unit
+    import re as _re
+    # clang (CI) does not understand gcc's optimize attribute on extracted functions.
+    emitted = _re.sub(r'__attribute__\(\(optimize\([^)]*\)\)\)', '', unit)
     if sys.platform == 'win32':
         # mingw's dirent lacks d_type; evaluate the file-type check via stat instead.
         emitted = emitted.replace('ent->d_type==DT_REG', 'stat(path,&win_sbuf)==0&&S_ISREG(win_sbuf.st_mode)')
