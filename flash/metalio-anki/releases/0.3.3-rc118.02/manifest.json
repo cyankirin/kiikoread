@@ -1,0 +1,70 @@
+{
+  "name": "Metalio 4.7 V1.5",
+  "version": "0.3.3-rc118.02",
+  "board": "metalio47",
+  "experimental_pie_pixels": true,
+  "experimental_text_ripple": true,
+  "experimental_rc110_ripple": true,
+  "experimental_reader_panel37": true,
+  "experimental_shelf37": true,
+  "experimental_fast_reader_panels": false,
+  "experimental_du14": false,
+  "experimental_settings_short_motion": true,
+  "experimental_trimmed_waveform": false,
+  "experimental_main_clean": false,
+  "experimental_network_probe": false,
+  "local_transfer_start_test": false,
+  "experimental_early_power_key": true,
+  "requires_bootloader_update": true,
+  "project": "Kiikoread_Metalio_S31",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S31",
+      "parts": [
+        {
+          "path": "bootloader.bin",
+          "offset": 8192,
+          "size": 24112,
+          "sha256": "6e0b4b7512ea6fce3157fdafd5eb047a0626db207ebe8efb7b816da5cbfda3f9"
+        },
+        {
+          "path": "partitions.bin",
+          "offset": 32768,
+          "size": 3072,
+          "sha256": "6a5500c826a7957e06233d2a580e8378106ce88a31db2857ccb5333a3c5f84bc"
+        },
+        {
+          "path": "../../../Metalio-S31-update-0.3.3-rc118.02.bin",
+          "offset": 65536,
+          "size": 4786688,
+          "sha256": "c3151ac0a65228a5484667e6965902119ed0d7f4942b7da9c928fc23047be316"
+        },
+        {
+          "path": "ota_data_initial.bin",
+          "offset": 53248,
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        }
+      ]
+    }
+  ],
+  "updated_at": "2026-11-23T23:20:00+08:00",
+  "pico_ota": {
+    "layout": "metalio-s31-dual-5m-v1",
+    "base_version": "0.3.3-rc118.02",
+    "minimum_base_version": "0.3.3-rc98",
+    "online_ota_base_version": "0.3.3-rc98",
+    "rollback": true
+  },
+  "previous_version": "0.3.3-rc118.01",
+  "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.02/kiikoread-metalio47-0.3.3-rc118.02-USB.zip",
+  "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.02/kiikoread-metalio47-0.3.3-rc118.02-TF.zip",
+  "release_notes": [
+    "修复休眠唤醒后概率性字库失效：唤醒时字体句柄重开失败不再拖住全局媒体状态，改为按路径整表重载；FAT 重挂时间戳漂移不再作废已选字体。",
+    "读取卡内 TF 字体失败后保留原选择，不再静默回退内置字体；SD 卡已就绪时会清掉遗留挂起状态并继续重试，无需重启。",
+    "合并官方 S31 RC118 基线：书架按真实文件夹管理、列表 13 项与封面 4×3；水波纹恢复 RC110 擦白顺序；设置新增低残影与 12 小时制。",
+    "官方修复随基线带入，Anki 导入/续学/进度备份保留。",
+    "本版沿用 RC118 引导程序，完整初装用网页 USB 安装，TF/OTA 仅更新应用。"
+  ]
+}
