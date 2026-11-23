@@ -25,6 +25,8 @@ UNIT = r'''
 #include "e0470_epaper_waveform.h"
 static bool oom;
 static int allocations;
+/* rc110: board waveform source includes settings.h for low-ghost mode; neutral for this probe. */
+bool app_settings_low_ghost(void){return false;}
 void *heap_caps_malloc(size_t n,int caps){assert(caps==3);++allocations;return oom?NULL:malloc(n);}
 int epd_width(void){return 1216;}
 int epd_height(void){return 684;}
@@ -134,7 +136,7 @@ with tempfile.TemporaryDirectory(prefix='s31-reader-profiles-') as temporary:
     linker = '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections'
     flags = ['cc', '-std=c11','-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined',
              '-ffunction-sections', '-fdata-sections', linker, '-DKIIKO_S31_FAST_READER_PANELS=0',
-             '-Imain', '-Itools/shelf_waveform_host_stubs', '-Itools/waveform_host_stubs',
+             '-Imain', '-Itools/book_source_host_stubs', '-Itools/shelf_waveform_host_stubs', '-Itools/waveform_host_stubs',
              '-Icomponents/epdiy/include', '-Icomponents/epdiy/src',
              '-Icomponents/e0470_epaper_waveform/include', '-Icomponents/e0470_epaper_waveform/metalio']
     sources = [str(test), 'main/display_reader_waveform.c', 'main/display_main_waveform.c',

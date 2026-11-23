@@ -86,6 +86,7 @@ static ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame){
 #define TAG "book_ui_test"
 typedef int esp_err_t;
 typedef struct app_desc {int unused;} app_desc_t;
+const app_desc_t app_files;
 typedef struct {bool touched;} test_touch_t;
 typedef struct {int leaf;bool request_menu,consumed;int64_t now_ms;uint8_t *fb;const app_desc_t *request_app;test_touch_t *touch;} app_ctx_t;
 typedef enum {APP_REDRAW_PAGE,APP_REDRAW_AREA,APP_REDRAW_NONE,APP_REDRAW_FULL} app_redraw_t;

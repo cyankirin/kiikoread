@@ -83,6 +83,8 @@ static ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame){
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 #define ESP_LOGI(...) ((void)0)
+#define ESP_LOGW(...) ((void)0)
+#define TAG "book_ui_test"
 typedef int esp_err_t;
 typedef struct app_desc {int unused;} app_desc_t;
 typedef struct {bool touched;} test_touch_t;
@@ -527,6 +529,8 @@ static const char *book_library_error(void){return "";}
 static book_library_mode_t book_library_mode(void){return BOOK_LIBRARY_UNSET;}
 typedef bool (*book_library_visit_fn)(const char *path,void *context);
 static esp_err_t book_library_list(book_library_visit_fn visit,void *context){(void)visit;(void)context;return ESP_OK;}
+static bool book_display_name_from_path(const char *p,char *dst,size_t cap,char *author,size_t acap){(void)author;(void)acap;snprintf(dst,cap,"%s",p);return true;}
+static bool shelf_library_visit(const char *p,void *ctx){(void)p;(void)ctx;return true;}
 static void shelf_cache_save(void){}
 static bool shelf_cache_load(app_ctx_t *ctx,bool background){(void)ctx;(void)background;return false;}
 static void reader_current_chapter(char *dst, size_t cap){(void)cap;dst[0]=0;}
