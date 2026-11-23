@@ -29,6 +29,12 @@ static uint32_t backup_pair_seal(const uint32_t pair[6]) {
         hash=(hash^(uint8_t)(pair[i]>>shift))*UINT32_C(16777619);
     return hash;
 }
+// FatFs 的 rename 不覆盖已存在目标（FR_EXIST/EEXIST），所以替换旧文件必须先删目标。
+// FatFs rename does not overwrite an existing destination (FR_EXIST/EEXIST), so delete it first.
+static bool backup_replace(const char *from, const char *to) {
+    if (remove(to) != 0 && errno != ENOENT) return false;
+    return rename(from, to) == 0;
+}
 static esp_err_t backup_pair_commit(void) {
     uint32_t pair[6]={UINT32_C(0x3150424b)};
     if (!backup_fingerprint(BACKUP_FILE,pair+1) || !backup_fingerprint(BACKUP_FULL_TEMP,pair+3)) return ESP_FAIL;
@@ -38,7 +44,11 @@ static esp_err_t backup_pair_commit(void) {
     bool ok=fwrite(pair,1,sizeof(pair),file)==sizeof(pair)&&fflush(file)==0&&fsync(fileno(file))==0;
     if(fclose(file))ok=false;
     if(!ok)return ESP_FAIL;
-    if(rename(BACKUP_FULL_TEMP,BACKUP_FULL)||rename(BACKUP_PAIR_TEMP,BACKUP_PAIR))return ESP_FAIL;
+    // 先作废旧配对，再替换全量件，最后发布新配对；中途断电最多退回兼容件。
+    // Invalidate the old pair, replace the full companion, then publish the new pair.
+    if (remove(BACKUP_PAIR) != 0 && errno != ENOENT) return ESP_FAIL;
+    if (!backup_replace(BACKUP_FULL_TEMP,BACKUP_FULL)) return ESP_FAIL;
+    if (!backup_replace(BACKUP_PAIR_TEMP,BACKUP_PAIR)) return ESP_FAIL;
     return ESP_OK;
 }
 static bool backup_pair_matches(const char *base) {

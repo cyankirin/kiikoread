@@ -7,7 +7,15 @@ R=Path(__file__).resolve().parents[1]
 view=R/'.kiiko-source-view.json'
 board=json.loads(view.read_text())['board'] if view.exists() else 'metalio47'
 fixture=R/('tools/settings_backup_host_test.c' if view.exists() else 'boards/metalio47/tests/tools/settings_backup_host_test.c')
-unit=fixture.read_text().replace('#include "../main/settings.c"','#include '+json.dumps(str(R/'main/settings.c')))
+unit=fixture.read_text().replace('#include "../main/settings.c"',f'''int FATFS_RENAME(const char*,const char*);
+#define rename FATFS_RENAME
+#include {json.dumps(str(R/"main/settings.c"))}
+#undef rename
+/* 复刻 FatFs 语义：目标已存在时 rename 返回 EEXIST，不覆盖。 */
+/* Mirror FatFs: rename fails with EEXIST instead of overwriting an existing target. */
+int real_rename_posix(const char*a,const char*b){{return rename(a,b);}}
+int FATFS_RENAME(const char*a,const char*b){{struct stat st;if(stat(b,&st)==0){{errno=EEXIST;return -1;}}return real_rename_posix(a,b);}}''')
+
 unit='#define main legacy_settings_tests\n'+unit+'\n#undef main\n#undef app_settings_backup_save\n'
 unit+=r'''
 static unsigned card_version(const char *path){
