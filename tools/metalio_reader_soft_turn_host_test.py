@@ -26,7 +26,7 @@ UNIT = r'''
 static bool oom;
 static int allocations;
 /* rc110: board waveform source includes settings.h for low-ghost mode; neutral for this probe. */
-bool app_settings_low_ghost(void){return false;}
+bool app_settings_low_ghost(void){return true;}
 void *heap_caps_malloc(size_t n,int caps){assert(caps==3);++allocations;return oom?NULL:malloc(n);}
 int epd_width(void){return 1216;}
 int epd_height(void){return 684;}
