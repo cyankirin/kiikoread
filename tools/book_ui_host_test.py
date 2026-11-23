@@ -843,10 +843,10 @@ int main(void) {
     shelf_entry_t a={.search_match=true,.name="Same.txt",.path="/sdcard/books/A/Same.txt"};
     shelf_entry_t b={.search_match=true,.name="Same.txt",.path="/sdcard/books/B/Same.txt"};
     assert(compare_books(&a,&b)<0);
-    b.recent=10;s_recent_sort=true;assert(compare_books(&a,&b)>0);
-    s_recent_sort=false;a.favorite=true;
+    b.recent=10;s_recent_sort=true;s_shelf_order=1;assert(compare_books(&a,&b)>0);
+    s_recent_sort=false;s_shelf_order=0;a.favorite=true;
     for(int style=1;style<=4;style++){test_shelf_style=style;assert(compare_books(&a,&b)<0);}
-    s_recent_sort=true;assert(compare_books(&a,&b)<0);s_recent_sort=false;test_shelf_style=0;
+    s_recent_sort=true;s_shelf_order=1;assert(compare_books(&a,&b)<0);s_recent_sort=false;s_shelf_order=0;test_shelf_style=0;
     a.favorite=false;a.recent=10;b.recent=20;a.added=100;b.added=200;
     strcpy(a.name,"Zulu");strcpy(b.name,"Alpha");
     int expected[]={1,1,-1,-1,-1,1};

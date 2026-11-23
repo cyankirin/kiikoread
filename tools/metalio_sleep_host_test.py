@@ -74,6 +74,9 @@ static void vTaskDelay(int ms){assert(ms==30);scheduler_yields++;clock_us+=(int6
 static void app_settings_set_last_wake(unsigned source){last_wake=source;}
 '''
 unit+='static void lock_resume_service(void){}\n'
+# rc110/pico sleep.c may reference this fork static before the stubs below declare it.
+if 's_lock_deep_ready' not in unit:
+    unit+='static bool s_lock_deep_ready;\n'
 unit+=function('app_light_sleep_wait_timed',root/'main/sleep.c')
 unit+=r'''
 static void reset(void){staged=true;keep_light=false;hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=unplug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=s_lock_sd_parked=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;}
