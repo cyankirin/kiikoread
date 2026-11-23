@@ -32,6 +32,17 @@ const EpdWaveform* display_main_water_waveform(void) {return &main_water;}
 const EpdWaveform* display_main_normal_waveform(void) { return display_main_water_waveform(); }
 const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode) {assert(mode==MODE_GL16||mode==MODE_GC16);return &main_acrylic;}
 const EpdWaveform* display_main_bw_waveform(void) {return &main_bw;}
+const EpdWaveform* display_main_ui_waveform(void) {return display_main_normal_waveform();}
+/* rc110 快速翻页入口：本测试只覆盖主导航与普通翻页，快读路径必须不被走到。 */
+/* rc110 fast-text entry points: this probe covers main navigation and ordinary turns only, so they must stay untaken. */
+uint8_t app_settings_reader_turn_effect(void) {return 0;}
+bool display_reader_fast_text_prepare(EpdiyHighlevelState *hl,EpdRect area) {(void)hl;(void)area;assert(false);return false;}
+const EpdWaveform* display_reader_fast_text_waveform(void) {assert(false);return NULL;}
+/* rc110 面板盲修路径只在 display_host_test 里被驱动；这里仅提供链接符号。 */
+/* rc110 blind panel repair is exercised only by display_host_test; here it is a link-only stub. */
+EpdRect epd_full_screen(void) { return (EpdRect){0,0,W,H}; }
+void vTaskDelay(uint32_t ticks) {(void)ticks;}
+void epd_push_pixels(EpdRect area, short time, int color) {(void)area;(void)time;(void)color;}
 static const EpdWaveform fast_bw = {12}, fast_gray = {13};
 static unsigned fast_white_calls, fast_white_scans;
 static bool fast_white_oom;

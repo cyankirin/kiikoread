@@ -38,6 +38,7 @@ typedef int app_wake_source_t;
 static EpdiyHighlevelState *s_lock_hint_hl,*s_boot_lock_hl;
 static struct{unsigned serial;}s_lock_hint;
 static bool s_boot_lock_active,s_boot_lock_known,s_boot_lock_draw;
+static bool s_lock_deep_ready;
 static unsigned read_pico_pmu_lock_key_serial(void){return 0;}
 static void lock_resume_service(void){}
 static uint8_t pixels[FRAME_BYTES],panel[FRAME_BYTES],style,current_background=0x32;

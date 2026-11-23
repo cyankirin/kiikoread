@@ -523,18 +523,53 @@ typedef int book_import_selection_t;
 #define BOOK_READER_LINE_MIN 100
 #define BOOK_READER_LINE_MAX 200
 #define BOOK_READER_LINE_COUNT (BOOK_READER_LINE_MAX-BOOK_READER_LINE_MIN+1)
-static bool book_library_contains(const char *p){(void)p;return false;}
-static esp_err_t book_library_begin_snapshot(void){return ESP_OK;}
-static esp_err_t book_library_add(const char *p){(void)p;return ESP_OK;}
-static esp_err_t book_library_commit(void){return ESP_OK;}
-static void book_library_abort(void){}
-static const char *book_library_error(void){return "";}
-static book_library_mode_t book_library_mode(void){return BOOK_LIBRARY_UNSET;}
+/* rc110 书架以库成员为准：ALL 兼容模式视全盘为已上架，首次落盘后转为显式成员表。 */
+/* rc110 shelf is library membership; ALL legacy mode treats every file as shelved until the first explicit write. */
+#define LIB_TEST_CAP 96
+static char s_lib_paths[LIB_TEST_CAP][400], s_lib_pending[LIB_TEST_CAP][400];
+static int s_lib_n, s_lib_pn, test_library_error;
+static bool s_lib_snapshot;
+static book_library_mode_t s_lib_mode=BOOK_LIBRARY_ALL;
+static int lib_find_path(char (*set)[400],int n,const char *p){for(int i=0;i<n;++i)if(!strcmp(set[i],p))return i;return -1;}
+static void lib_store_path(char (*set)[400],int *n,const char *p){if(*n>=LIB_TEST_CAP)return;strncpy(set[*n],p,399);set[*n][399]=0;++*n;}
+static bool book_library_contains(const char *p){if(s_lib_mode==BOOK_LIBRARY_ALL)return true;return lib_find_path(s_lib_paths,s_lib_n,p)>=0;}
+static esp_err_t book_library_begin_snapshot(void){if(test_library_error)return (esp_err_t)test_library_error;s_lib_snapshot=true;s_lib_pn=0;return ESP_OK;}
+static esp_err_t book_library_add(const char *p){
+    if(test_library_error)return (esp_err_t)test_library_error;
+    if(s_lib_mode==BOOK_LIBRARY_ALL){if(lib_find_path(s_lib_pending,s_lib_pn,p)<0)lib_store_path(s_lib_pending,&s_lib_pn,p);return ESP_OK;}
+    if(lib_find_path(s_lib_paths,s_lib_n,p)<0)lib_store_path(s_lib_paths,&s_lib_n,p);
+    return ESP_OK;
+}
+static esp_err_t book_library_commit(void){
+    if(test_library_error)return (esp_err_t)test_library_error;
+    if(s_lib_mode==BOOK_LIBRARY_ALL&&s_lib_snapshot){s_lib_n=s_lib_pn;memcpy(s_lib_paths,s_lib_pending,sizeof(s_lib_paths));s_lib_mode=BOOK_LIBRARY_SELECTED;}
+    s_lib_snapshot=false;s_lib_pn=0;return ESP_OK;
+}
+static void book_library_abort(void){s_lib_snapshot=false;s_lib_pn=0;}
+static esp_err_t book_library_error(void){return (esp_err_t)test_library_error;}
+static book_library_mode_t book_library_mode(void){return s_lib_mode;}
+static esp_err_t book_library_remove(const char *p){
+    if(test_library_error)return (esp_err_t)test_library_error;
+    int i=lib_find_path(s_lib_paths,s_lib_n,p);
+    if(i<0)return ESP_OK;
+    for(int j=i;j<s_lib_n-1;++j)memcpy(s_lib_paths[j],s_lib_paths[j+1],sizeof(s_lib_paths[0]));
+    --s_lib_n;return ESP_OK;
+}
 typedef bool (*book_library_visit_fn)(const char *path,void *context);
-static esp_err_t book_library_list(book_library_visit_fn visit,void *context){(void)visit;(void)context;return ESP_OK;}
-static bool book_display_name_from_path(const char *p,char *dst,size_t cap,char *author,size_t acap){(void)author;(void)acap;snprintf(dst,cap,"%s",p);return true;}
+static esp_err_t book_library_list(book_library_visit_fn visit,void *context){if(s_lib_mode==BOOK_LIBRARY_ALL)return ESP_OK;for(int i=0;i<s_lib_n;++i)if(!visit(s_lib_paths[i],context))break;return ESP_OK;}
+static bool book_display_name_from_path(const char *p,char *dst,size_t cap,char *author,size_t acap){(void)author;(void)acap;return book_title_from_path(p,dst,cap);}
 static bool shelf_library_visit(const char *p,void *ctx){(void)p;(void)ctx;return true;}
-static bool library_remove_selected(void){return true;}
+static bool library_remove_selected(void){
+    bool legacy=book_library_mode()==BOOK_LIBRARY_ALL;
+    esp_err_t error=book_library_begin_snapshot();
+    for(int i=0;error==ESP_OK&&i<s_count;++i){
+        if(legacy){if(!s_shelf[i].selected)error=book_library_add(s_shelf[i].path);}
+        else if(s_shelf[i].selected)error=book_library_remove(s_shelf[i].path);
+    }
+    if(error==ESP_OK)error=book_library_commit();
+    if(error!=ESP_OK){book_library_abort();return false;}
+    return true;
+}
 static bool books_directory_is_root(void){return true;}
 static const char *books_directory_current(void){return "";}
 static app_redraw_t books_directory_open(app_ctx_t *ctx,const char *p){(void)ctx;(void)p;return APP_REDRAW_NONE;}
@@ -872,6 +907,7 @@ int main(void) {
     char nested[340],nested_book[380];snprintf(nested,sizeof(nested),"%s/nested",test_roots[0].path);
     assert(mkdir(nested,0700)==0);snprintf(nested_book,sizeof(nested_book),"%s/inside.epub",nested);
     FILE* nested_file=fopen(nested_book,"w");assert(nested_file);fputs("x",nested_file);fclose(nested_file);
+    assert(book_library_begin_snapshot()==ESP_OK&&book_library_add(nested_book)==ESP_OK&&book_library_commit()==ESP_OK);
     scan_shelf(&ctx);assert(s_count==66);assert(unlink(nested_book)==0);assert(rmdir(nested)==0);scan_shelf(&ctx);
     char deep[14][340];snprintf(deep[0],sizeof(deep[0]),"%s",test_roots[0].path);
     for(int level=1;level<=13;level++){
@@ -883,6 +919,7 @@ int main(void) {
     snprintf(ignored_book,sizeof(ignored_book),"%s/ignored.epub",deep[13]);
     FILE* deep_file=fopen(deep_book,"w");assert(deep_file);fputs("x",deep_file);fclose(deep_file);
     deep_file=fopen(ignored_book,"w");assert(deep_file);fputs("x",deep_file);fclose(deep_file);
+    assert(book_library_begin_snapshot()==ESP_OK&&book_library_add(deep_book)==ESP_OK&&book_library_commit()==ESP_OK);
     scan_shelf(&ctx);assert(s_count==66&&s_shelf_warning[0]);
     assert(unlink(deep_book)==0&&unlink(ignored_book)==0);
     for(int level=13;level>=1;level--)assert(rmdir(deep[level])==0);
@@ -905,6 +942,8 @@ int main(void) {
     for(int i=1;i<4;i++)test_progress[i].value=(book_progress_t){.file_size=1,.px=48,.pct=7};
     favorite_key(outside,test_favorite_key);
     strcpy(test_recent_path,outside);++test_progress_revision;
+    assert(book_library_begin_snapshot()==ESP_OK&&book_library_add(outside)==ESP_OK&&book_library_commit()==ESP_OK);
+    s_shelf_order=1;s_recent_sort=true;
     refresh_cached_progress(&ctx);assert(s_count==66&&s_visible_count==66);
     assert(!strcmp(s_shelf[0].path,outside)&&!strcmp(s_shelf[0].name,"读过")&&
            !strcmp(s_shelf[0].author,"作者")&&s_shelf[0].favorite&&s_shelf[0].has_progress&&
@@ -915,22 +954,23 @@ int main(void) {
     s_view=BULK;s_bulk_selecting=true;clear_selection();toggle_selection(0);
     EpdRect unshelf= batch_rect(5);int removal_delete_calls=test_delete_calls;
     batch_action(&ctx,unshelf.x+1,unshelf.y+1);
-    assert(s_batch_confirm&&s_batch_kind==BATCH_UNSHELF&&!shelf_hidden_load(outside));
+    assert(s_batch_confirm&&s_batch_kind==BATCH_UNSHELF&&book_library_contains(outside));
     EpdRect dismiss=ui_row_rect(0,2,620,UI_BTN_H);
     batch_action(&ctx,dismiss.x+1,dismiss.y+1);
-    assert(!s_batch_confirm&&!shelf_hidden_load(outside)&&selected_count()==1);
-    test_hidden_error=ESP_FAIL;batch_apply(&ctx);
-    assert(s_count==66&&selected_count()==1&&!shelf_hidden_load(outside));
-    test_hidden_error=ESP_OK;batch_apply(&ctx);
-    assert(s_count==65&&!selected_count()&&shelf_hidden_load(outside)&&test_delete_calls==removal_delete_calls);
+    assert(!s_batch_confirm&&book_library_contains(outside)&&selected_count()==1);
+    test_library_error=ESP_FAIL;batch_apply(&ctx);
+    assert(s_count==66&&selected_count()==1&&book_library_contains(outside));
+    test_library_error=ESP_OK;batch_apply(&ctx);
+    assert(s_count==65&&!selected_count()&&!book_library_contains(outside)&&test_delete_calls==removal_delete_calls);
     struct stat outside_stat;assert(stat(outside,&outside_stat)==0&&outside_stat.st_size==1);
     book_progress_t retained;
     assert(book_progress_load(outside,1,&retained)&&retained.pct==42&&retained.byte_off==17);
-    scan_shelf(&ctx);refresh_cached_progress(&ctx);assert(s_count==65&&shelf_hidden_load(outside));
-    assert(shelf_hidden_save(outside,false));scan_shelf(&ctx);refresh_cached_progress(&ctx);
-    assert(s_count==66&&!shelf_hidden_load(outside));
-    assert(shelf_hidden_save(test_progress[3].path,true));scan_shelf(&ctx);assert(s_count==65&&!chapter_reads);
-    assert(shelf_hidden_save(test_progress[3].path,false));
+    scan_shelf(&ctx);refresh_cached_progress(&ctx);assert(s_count==65&&!book_library_contains(outside));
+    assert(book_library_begin_snapshot()==ESP_OK&&book_library_add(outside)==ESP_OK&&book_library_commit()==ESP_OK);scan_shelf(&ctx);refresh_cached_progress(&ctx);
+    assert(s_count==66&&book_library_contains(outside));
+    assert(book_library_begin_snapshot()==ESP_OK&&book_library_remove(test_progress[3].path)==ESP_OK&&book_library_commit()==ESP_OK);scan_shelf(&ctx);assert(s_count==65&&!chapter_reads);
+    assert(book_library_begin_snapshot()==ESP_OK&&book_library_add(test_progress[3].path)==ESP_OK&&book_library_commit()==ESP_OK);
+    s_shelf_order=0;s_recent_sort=false;
     char hidden_key[11];shelf_hidden_key(outside,hidden_key);
     assert(nvs_set_str(2,hidden_key,changed)==ESP_OK);
     assert(!shelf_hidden_save(outside,true)&&!shelf_hidden_load(outside));
@@ -956,23 +996,23 @@ int main(void) {
     assert(bulk_select_row(&ctx,-1)==APP_REDRAW_NONE&&!s_bulk_selecting);
     assert(bulk_select_row(&ctx,0)==APP_REDRAW_PAGE&&s_bulk_selecting&&selected_count()==1);
     assert(bulk_select_row(&ctx,0)==APP_REDRAW_PAGE&&selected_count()==1);
-    for(int page=1;page<=12;++page){
+    for(int page=1;page<=4;++page){
         assert(bulk_control_at(&ctx,550,1046,&hit)==102);
         assert(bulk_action(&ctx,550,1046)==APP_REDRAW_PAGE&&ctx.leaf==page);
         assert(s_view==BULK&&!ctx.request_menu&&selected_count()==1);
     }
-    assert(bulk_action(&ctx,550,1046)==APP_REDRAW_NONE&&ctx.leaf==12);
+    assert(bulk_action(&ctx,550,1046)==APP_REDRAW_NONE&&ctx.leaf==4);
     assert(bulk_action(&ctx,entry.x+10,entry.y+10)==APP_REDRAW_PAGE&&selected_count()==2);
-    assert(s_shelf[0].selected&&s_shelf[60].selected);
-    assert(bulk_action(&ctx,616,112)==APP_REDRAW_PAGE&&s_bulk_grid&&ctx.leaf==10&&shelf_rows()==6&&leaves()==11&&selected_count()==2);
-    assert(bulk_select_row(&ctx,5)==APP_REDRAW_NONE&&selected_count()==2);
-    assert(bulk_action(&ctx,616,112)==APP_REDRAW_PAGE&&!s_bulk_grid&&ctx.leaf==12&&selected_count()==2);
+    assert(s_shelf[0].selected&&s_shelf[52].selected);
+    assert(bulk_action(&ctx,616,112)==APP_REDRAW_PAGE&&s_bulk_grid&&ctx.leaf==4&&shelf_rows()==12&&leaves()==6&&selected_count()==2);
+    assert(bulk_select_row(&ctx,12)==APP_REDRAW_NONE&&selected_count()==2);
+    assert(bulk_action(&ctx,616,112)==APP_REDRAW_PAGE&&!s_bulk_grid&&ctx.leaf==3&&selected_count()==2);
     assert(bulk_action(&ctx,72,1031)==APP_REDRAW_PAGE&&ctx.leaf==0);
     assert(bulk_action(&ctx,72,1031)==APP_REDRAW_NONE&&ctx.leaf==0);
-    assert(bulk_action(&ctx,612,1031)==APP_REDRAW_PAGE&&ctx.leaf==12);
+    assert(bulk_action(&ctx,612,1031)==APP_REDRAW_PAGE&&ctx.leaf==4);
     s_batch_confirm=true;
     assert(bulk_control_at(&ctx,550,1046,&hit)==-1);
-    assert(bulk_action(&ctx,550,1046)==APP_REDRAW_NONE&&ctx.leaf==12);
+    assert(bulk_action(&ctx,550,1046)==APP_REDRAW_NONE&&ctx.leaf==4);
     assert(bulk_select_row(&ctx,0)==APP_REDRAW_NONE);
     EpdRect batch_cancel=ui_row_rect(0,2,620,UI_BTN_H);
     assert(bulk_action(&ctx,batch_cancel.x+10,batch_cancel.y+10)==APP_REDRAW_PAGE&&!s_batch_confirm&&selected_count()==2);
