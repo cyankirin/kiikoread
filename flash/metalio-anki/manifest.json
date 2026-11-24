@@ -1,6 +1,6 @@
 {
   "name": "Metalio 4.7 V1.5",
-  "version": "0.3.3-rc118.04",
+  "version": "0.3.3-rc118.05",
   "board": "metalio47",
   "experimental_pie_pixels": true,
   "experimental_text_ripple": true,
@@ -26,7 +26,7 @@
           "path": "bootloader.bin",
           "offset": 8192,
           "size": 24112,
-          "sha256": "1ed2cc9115f18c80582ab33c50db49f028ce5c8f910b454ac755d56bf92af891"
+          "sha256": "659e1a6a0c38e45989e9958587c42ab50417f67a730bd3e997cd688c17ee36cd"
         },
         {
           "path": "partitions.bin",
@@ -37,8 +37,8 @@
         {
           "path": "firmware.bin",
           "offset": 65536,
-          "size": 4787136,
-          "sha256": "8ebe506ff98500e86cbacc7afcdde491a4531ccc6887bf6fed78dff8831ef1db"
+          "size": 4787184,
+          "sha256": "688d3bd0e78ef64f26c317b069561fffcfdf3c31035a615886b3e1d6c4d1e372"
         },
         {
           "path": "ota_data_initial.bin",
@@ -49,23 +49,23 @@
       ]
     }
   ],
-  "updated_at": "2026-11-24T11:20:00+08:00",
+  "updated_at": "2026-11-24T13:10:00+08:00",
   "pico_ota": {
     "layout": "metalio-s31-dual-5m-v1",
-    "base_version": "0.3.3-rc118.04",
+    "base_version": "0.3.3-rc118.05",
     "minimum_base_version": "0.3.3-rc98",
     "online_ota_base_version": "0.3.3-rc98",
     "rollback": true
   },
-  "previous_version": "0.3.3-rc118.03",
-  "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.04/kiikoread-metalio47-0.3.3-rc118.04-USB.zip",
-  "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.04/kiikoread-metalio47-0.3.3-rc118.04-TF.zip",
+  "previous_version": "0.3.3-rc118.04",
+  "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.05/kiikoread-metalio47-0.3.3-rc118.05-USB.zip",
+  "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.05/kiikoread-metalio47-0.3.3-rc118.05-TF.zip",
   "release_notes": [
-    "修复休眠唤醒后字体概率性退回内置字体（RC118.02 未解决的那一条）：字体不再被「唤醒交接未确认」的全局挂起标志连坐，只看卡是否已挂载且门禁已放行。",
-    "唤醒交接现在在挂载验证成功后立即结束：书本文件重开失败只让当页重载，不再拖着字体和整轮会话钉在内置字体上（现场表现为只能重启）。",
-    "read_pico_sd_io_ready 同时校验门禁状态，缓存快照与实际可读性背离时不会再让字体误判为可读。",
-    "新增现场可诊断日志：system face deferred / activate ... deferred / wake font reopen failed / wake book reopen failed。",
-    "保留 RC118.03 的「保存配置到 TF 卡」修复与 RC118.02 的字体按路径重载。",
+    "长时间休眠唤醒后字体退回内置（RC118.04 未解决的那一条）：开机检查点的 starting 标记在无续读记录时没人清，泄漏到下一次开机被判为异常启动（reasons=0x02），字体被锁成内置一整轮。",
+    "S31 锁屏门禁现在有/无续读记录、有/无密码都会落一次「本次开机已完成」，starting 不再跨开机残留。",
+    "字体与异常启动标记彻底分离：pico_boot_recovery 只管自动续读与自动开书，不再参与系统字体、阅读字体、锁屏恢复和状态栏字体的选择。",
+    "新增日志：boot recovery active; keeping saved face —— 出现异常启动标记时明确说明字体仍按用户选择加载。",
+    "保留 RC118.04 的字体与唤醒交接解耦、挂载验证即释放挂起，以及 RC118.03 的 TF 卡保存修复。",
     "本版沿用 RC118 引导程序，完整初装用网页 USB 安装，TF/OTA 仅更新应用。"
   ]
 }

@@ -1,39 +1,29 @@
 {
   "schema": 1,
-  "tag": "metalio-s31-v0.3.3-rc118.04",
+  "tag": "metalio-s31-v0.3.3-rc118.05",
   "files": {
     "bootloader.bin": {
-      "asset": "Metalio-S31-bootloader-0.3.3-rc118.04.bin",
+      "asset": "Metalio-S31-bootloader-0.3.3-rc118.05.bin",
       "size": 24112,
-      "sha256": "1ed2cc9115f18c80582ab33c50db49f028ce5c8f910b454ac755d56bf92af891"
+      "sha256": "659e1a6a0c38e45989e9958587c42ab50417f67a730bd3e997cd688c17ee36cd"
     },
     "partitions.bin": {
-      "asset": "Metalio-S31-partitions-0.3.3-rc118.04.bin",
+      "asset": "Metalio-S31-partitions-0.3.3-rc118.05.bin",
       "size": 3072,
       "sha256": "6a5500c826a7957e06233d2a580e8378106ce88a31db2857ccb5333a3c5f84bc"
     },
     "firmware.bin": {
-      "asset": "kiikoread-metalio47-0.3.3-rc118.04.bin",
-      "size": 4787136,
-      "sha256": "8ebe506ff98500e86cbacc7afcdde491a4531ccc6887bf6fed78dff8831ef1db"
+      "asset": "kiikoread-metalio47-0.3.3-rc118.05.bin",
+      "size": 4787184,
+      "sha256": "688d3bd0e78ef64f26c317b069561fffcfdf3c31035a615886b3e1d6c4d1e372"
     },
     "ota_data_initial.bin": {
-      "asset": "Metalio-S31-ota-data-0.3.3-rc118.04.bin",
+      "asset": "Metalio-S31-ota-data-0.3.3-rc118.05.bin",
       "size": 8192,
       "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
     }
   },
   "historical": [
-    {
-      "tag": "metalio-s31-v0.3.3-rc118.02",
-      "files": {
-        "Metalio-S31-update-0.3.3-rc118.02.bin": {
-          "asset": "kiikoread-metalio47-0.3.3-rc118.02.bin",
-          "size": 4786688,
-          "sha256": "c3151ac0a65228a5484667e6965902119ed0d7f4942b7da9c928fc23047be316"
-        }
-      }
-    },
     {
       "tag": "metalio-s31-v0.3.3-rc118.03",
       "files": {
@@ -41,6 +31,16 @@
           "asset": "kiikoread-metalio47-0.3.3-rc118.03.bin",
           "size": 4786768,
           "sha256": "8424f3072ecca179cc95bf1667ee892c8054400f3f3e8321fcadc857302feeeb"
+        }
+      }
+    },
+    {
+      "tag": "metalio-s31-v0.3.3-rc118.04",
+      "files": {
+        "Metalio-S31-update-0.3.3-rc118.04.bin": {
+          "asset": "kiikoread-metalio47-0.3.3-rc118.04.bin",
+          "size": 4787136,
+          "sha256": "8ebe506ff98500e86cbacc7afcdde491a4531ccc6887bf6fed78dff8831ef1db"
         }
       }
     }
