@@ -49,7 +49,7 @@
       ]
     }
   ],
-  "updated_at": "2026-11-24T13:10:00+08:00",
+  "updated_at": "2026-11-24T15:20:00+08:00",
   "pico_ota": {
     "layout": "metalio-s31-dual-5m-v1",
     "base_version": "0.3.3-rc118.05",
