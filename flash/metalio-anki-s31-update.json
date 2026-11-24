@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc118.05",
+  "version": "0.3.3-rc118.06",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "0.3.3-rc98",
-  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.05.bin",
-  "size": 4787184,
-  "sha256": "688d3bd0e78ef64f26c317b069561fffcfdf3c31035a615886b3e1d6c4d1e372",
-  "notes": "官方 S31 RC118 基线（Anki 版）：修复长时间休眠唤醒后字体退回内置——开机完成标记不再跨次残留，异常启动标记只挡自动续读，不再把用户选的字体锁成内置。"
+  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.06.bin",
+  "size": 4787424,
+  "sha256": "ad47a95bc2aac8554e9d19eb9274dedc3159721876f18d2804c6216df8535fb2",
+  "notes": "官方 S31 RC118 基线（Anki 版）：修复休眠唤醒后封面丢失——异常启动只隔离上次被打断的那本书，不再封掉整卡资源；晚就绪的卡会补一轮封面。"
 }

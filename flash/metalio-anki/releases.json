@@ -1,32 +1,32 @@
 {
   "schema": 1,
-  "previous_version": "0.3.3-rc118.04",
+  "previous_version": "0.3.3-rc118.05",
   "releases": [
     {
-      "version": "0.3.3-rc118.04",
-      "manifest": "metalio-anki/releases/0.3.3-rc118.04/manifest.json",
-      "bin": "Metalio-S31-update-0.3.3-rc118.04.bin",
-      "source_commit": "858b460ad358f72e74a1956277ef3fbc6f9bbe1f",
+      "version": "0.3.3-rc118.05",
+      "manifest": "metalio-anki/releases/0.3.3-rc118.05/manifest.json",
+      "bin": "Metalio-S31-update-0.3.3-rc118.05.bin",
+      "source_commit": "abf4262645a5cb5b6c2ecb3e32cbb6abb5ce0a90",
       "files": {
         "bootloader.bin": {
           "size": 24112,
-          "sha256": "1ed2cc9115f18c80582ab33c50db49f028ce5c8f910b454ac755d56bf92af891"
+          "sha256": "659e1a6a0c38e45989e9958587c42ab50417f67a730bd3e997cd688c17ee36cd"
         },
         "partitions.bin": {
           "size": 3072,
           "sha256": "6a5500c826a7957e06233d2a580e8378106ce88a31db2857ccb5333a3c5f84bc"
         },
         "firmware.bin": {
-          "size": 4787136,
-          "sha256": "8ebe506ff98500e86cbacc7afcdde491a4531ccc6887bf6fed78dff8831ef1db"
+          "size": 4787184,
+          "sha256": "688d3bd0e78ef64f26c317b069561fffcfdf3c31035a615886b3e1d6c4d1e372"
         },
         "ota_data_initial.bin": {
           "size": 8192,
           "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
         }
       },
-      "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.04/kiikoread-metalio47-0.3.3-rc118.04-USB.zip",
-      "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.04/kiikoread-metalio47-0.3.3-rc118.04-TF.zip"
+      "usb_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.05/kiikoread-metalio47-0.3.3-rc118.05-USB.zip",
+      "tf_package_url": "https://github.com/cyankirin/kiikoread/releases/download/metalio-s31-v0.3.3-rc118.05/kiikoread-metalio47-0.3.3-rc118.05-TF.zip"
     }
   ]
 }
