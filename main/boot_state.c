@@ -225,7 +225,13 @@ void pico_boot_ready(void) {
 }
 bool pico_boot_recovery(void) { return s_recovery; }
 bool pico_boot_asset_allowed(const char *path) {
-    return path && !s_recovery && (!s_record.blocked[0] || strcmp(path, s_record.blocked));
+    // 中文：异常启动只该拦住“上次中途被打断的那本书”，不能把整卡的封面/缩略图/元数据全
+    //       封掉。以前这里用 !s_recovery 一刀切，任何一次异常启动都会让书架与首页封面在
+    //       整轮会话里显示不出来——和唤醒后字体变内建是同一个根源。
+    // English: An abnormal start may only quarantine the book it was interrupted on. Blanket
+    //         blocking every asset on !s_recovery is what made covers vanish for a whole session
+    //         after a wake, alongside the built-in-face symptom.
+    return path && !(s_record.blocked[0] && !strcmp(path, s_record.blocked));
 }
 esp_err_t pico_boot_book_begin(const char *path) {
     if (!path || !path_valid(path, false)||!book_file_path_supported(path)) return ESP_ERR_INVALID_ARG;

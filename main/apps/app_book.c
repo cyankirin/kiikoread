@@ -1273,7 +1273,11 @@ static unsigned prepare_cover_batch(app_ctx_t *ctx,bool cache_only) {
         copy_text(request.author,sizeof(request.author),s_shelf[index].author);
 #if KIIKO_BOARD_METALIO47
         if (s_view == SHELF && !pico_boot_asset_allowed(request.path)) {
-            s_cover_pending_mask &= ~bit;
+            // 被隔离的只应是上一次中途被打断的那本书；给它有限次重试，别把整格永久留白。
+            // Only the book interrupted last time is quarantined; retry it a few times instead of
+            // dropping the cell for the whole session.
+            if (++s_cover_retry_count[row] >= 3) s_cover_pending_mask &= ~bit;
+            else s_cover_retry_ms[row] = ctx->now_ms + 500;
             continue;
         }
 #endif

@@ -423,6 +423,12 @@ static void restore_cover_cache(void) {
 
 static unsigned s_cover_generation;
 static bool s_cover_waiting;
+#if KIIKO_BOARD_METALIO47
+// 唤醒后卡可能很晚才可读；首轮封面请求会被门禁挡掉，不能因此永久留白。
+// The card can become readable late after a wake; an early blocked request must not leave the
+// slot blank forever.
+static uint32_t s_cover_retry_ms;
+#endif
 static bool load_cover(home_book_t *item,int slot) {
     s_cover_waiting=false;
     if(!pico_boot_asset_allowed(item->path))return false;
@@ -1138,16 +1144,31 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     }
     if(s_view==HOME_GOAL)return APP_REDRAW_NONE;
     home_book_t *books[3];unsigned n=folder_books(books);
+#if KIIKO_BOARD_METALIO47
+    // 一轮尝试走完仍有格子没有封面时，等卡真正可读再从头补一輪（1 秒一次，不空转）。
+    // When a pass ends with blank slots, re-run it once the card is genuinely readable.
+    if(s_cover_next>=n+1&&ctx->now_ms>=s_cover_retry_ms&&read_pico_sd_io_ready()){
+        bool missing=false;
+        for(unsigned i=0;i<n+1;++i){home_book_t *b=i?books[i-1]:featured();if(b->path[0]&&!b->cover){missing=true;break;}}
+        if(missing){s_cover_next=0;s_cover_retry_ms=ctx->now_ms+1000;}
+    }
+#endif
     if(s_cover_next<n+1) {
         unsigned i=s_cover_next++;home_book_t *b=i?books[i-1]:featured();
         if(b->path[0]&&!b->cover) {
             int slot=b==&s_current?0:(int)(b-s_recent)+1;
-            if(load_cover(b,slot)&&!i&&s_view==HOME_ROOT){
+            const bool loaded=load_cover(b,slot);
+            if(loaded&&!i&&s_view==HOME_ROOT){
 #if KIIKO_BOARD_METALIO47
                 if (app_touch_input_pending(ctx)) { s_featured_cover_dirty=true; return APP_REDRAW_NONE; }
 #endif
                 s_area=(EpdRect){60,278,176,240};return APP_REDRAW_AREA;
             }
+#if KIIKO_BOARD_METALIO47
+            // 补上的相邻封面要一次重画才看得见，否则像素进了缓存却还留白。
+            // A late-loaded neighbour cover needs one repaint, or it stays cached but blank.
+            if(loaded&&i)return APP_REDRAW_PAGE;
+#endif
             if(s_cover_waiting)--s_cover_next;
         }
         return APP_REDRAW_NONE;
