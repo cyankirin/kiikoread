@@ -97,5 +97,11 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+      # 中文：GitHub 的 artifact 元数据在 upload 之后有短暂延迟，deploy-pages 立刻读会拿到
+      #       “Found 0 artifact(s)” 而失败（2026-11-24 连续三次）。这里等一会儿再部署。
+      # English: GitHub's artifact metadata can lag right after upload; deploy-pages then sees
+      #      "Found 0 artifact(s)" and fails (three times on 2026-11-24). Give it a moment first.
+      - name: Let artifact metadata settle
+        run: sleep 25
       - id: deployment
         uses: actions/deploy-pages@v4
