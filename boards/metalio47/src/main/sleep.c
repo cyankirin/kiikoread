@@ -1018,6 +1018,13 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
         // 异常启动不自动续读，但真实解锁后可以消费已保留的锁定标记。
         // Abnormal startup cannot resume books, but verified unlock can consume the retained lock marker.
         if(pico_boot_lock_pending() && !pico_boot_has_resume())pico_boot_clear_resume();
+        // 中文：不管有没有可续读记录，过门禁都要把“本次开机已完成”落到检查点。少了这一步，
+        //       starting 会一直留到下一次开机，那时被判定为异常启动（reasons=0x02），字体被
+        //       锁成内建——现场就是“唤醒后字体变回内建”。
+        // English: Mark this boot complete once the gate is passed, resume record or not. Leaving
+        //          it set makes the next boot look like an abnormal start (reasons 0x02) and
+        //          pins faces to the built-in one.
+        pico_boot_ready();
         return;
     }
     // 卡挂载有界等待仅为了字体/锁屏图；没有卡仍必须验证。
@@ -1042,4 +1049,7 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
     (void)app_lock_resume_frame(NULL);
     app_font_end_lock(&saved);
     if(pico_boot_lock_pending() && !pico_boot_has_resume())pico_boot_clear_resume();
+    // 密码门禁通过后同样标记本次开机完成，避免 starting 泄漏到下一次开机。
+    // Mark the boot complete after a verified PIN gate too, so `starting` cannot leak into the next boot.
+    pico_boot_ready();
 }

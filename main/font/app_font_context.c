@@ -48,11 +48,33 @@ static bool font_file(const char *path, struct stat *st) {
     return path && stat(path, st) == 0 && S_ISREG(st->st_mode) && st->st_size > 0;
 }
 
+static bool system_face_usable(void) {
+#if KIIKO_BOARD_METALIO47
+    // 恢复标记只挡自动续读，不挡用户已选的字体。/ Recovery gates auto-resume only, not the saved face.
+    return true;
+#else
+    return s_user_choice || !pico_boot_recovery();
+#endif
+}
+
 static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
+#if KIIKO_BOARD_METALIO47
+    // 中文：字体是只读资源，和“这次开机是否自动续读书”的恢复标记无关。恢复标记只该
+    //       阻止自动续读/自动开书，不能把用户选好的字体锁成内建——现场表现就是休眠
+    //       唤醒后字体变回内建，只有再重启一次才恢复。
+    // English: A face is a read-only asset and has nothing to do with whether this boot may
+    //          auto-resume a book. The recovery flag must gate auto-resume, not the saved
+    //          face; gating it there is exactly the wake-to-builtin symptom.
+    if (pico_boot_recovery()) {
+        static bool logged;
+        if (!logged) { logged = true; ESP_LOGW("font_context", "boot recovery active; keeping saved face (book/resume gate only)"); }
+    }
+#else
     // 用户显式选过字体后，异常启动的保护锁不再拦着真实字体加载。
     // Once the user picked a face explicitly, the abnormal-boot guard stops
     // forcing the built-in one.
     if (pico_boot_recovery() && !s_user_choice) return TTF_FONT_BUILTIN;
+#endif
 #if KIIKO_BOARD_METALIO47
     // 中文：字体只看真实的卡状态（已挂载且门禁放行），不再被“唤醒交接未确认”的全局
     //       挂起标志连坐——那个标志一旦因书本重开失败而挂住，整次开机就只能用内建字体。
@@ -196,7 +218,7 @@ bool app_font_activate_system(void) {
     bool changed = activate(path);
     // 未选字体时由内建思源黑体绘制界面；TTF 仍保留完整字库供文件名缺字回退。
     // Built-in Source Han Sans draws default UI; the full TTF remains loaded for missing glyphs.
-    ui_text_set_system_font((s_user_choice || !pico_boot_recovery()) && chosen[0] &&
+    ui_text_set_system_font(system_face_usable() && chosen[0] &&
                            ttf_font_ready() && !strcmp(chosen, ttf_font_path()) &&
                            !ttf_font_is_builtin());
     ui_text_set_system_scale(true);
@@ -208,8 +230,7 @@ bool app_font_activate_reading(void) {
     s_reading = true;
     ttf_set_stroke_adjust_fine(app_settings_book_weight_fine());
     ttf_set_antialias(app_settings_book_antialias());
-    const char* saved = (pico_boot_recovery() && !s_user_choice) ? TTF_FONT_BUILTIN
-                                                                 : app_settings_font_path();
+    const char* saved = app_settings_font_path();
     bool changed = activate(ttf_font_path_is_builtin(saved) ? TTF_FONT_BUILTIN : saved);
     ui_text_set_system_font(false);
     ui_text_set_system_scale(false);
@@ -247,8 +268,7 @@ void app_font_end_lock(const app_lock_font_t *saved) {
     const char *restore=saved->path;
     // 暂时退回内建不能覆盖阅读意图；锁屏前未加载成功的TF字体在解锁时再尝试。
     // A temporary built-in fallback does not replace reader intent; retry the selected TF face on unlock.
-    if (pico_boot_recovery()) restore=TTF_FONT_BUILTIN;
-    else if(s_reading && ttf_font_path_is_builtin(restore)) restore=app_settings_font_path();
+    if(s_reading && ttf_font_path_is_builtin(restore)) restore=app_settings_font_path();
     if(ttf_font_path_is_builtin(restore)) restore=TTF_FONT_BUILTIN;
     // activate的false也表示“暂缓/未改变”，不能据此卸载仍待恢复的字体。
     // False also means deferred/unchanged; it must not discard a face still awaiting IO restoration.
@@ -258,7 +278,7 @@ void app_font_end_lock(const app_lock_font_t *saved) {
     ttf_set_stroke_adjust_fine(s_reading ? app_settings_book_weight_fine() : 0);
     ttf_set_antialias(!s_reading || app_settings_book_antialias());
     const char *chosen = app_settings_system_font_path();
-    ui_text_set_system_font((s_user_choice || !pico_boot_recovery()) && !s_reading && chosen[0] &&
+    ui_text_set_system_font(system_face_usable() && !s_reading && chosen[0] &&
                            !strcmp(chosen, ttf_font_path()) && !ttf_font_is_builtin());
     ui_text_set_system_scale(!s_reading);
     ui_nav_status_font_context(s_reading, false);
