@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc110.01",
+  "version": "0.3.3-rc110.02",
   "project": "Read_Pico",
   "board": "RDP-G01-W",
   "layout": "pico-dual-4m-v1",
   "minimum_base_version": "0.3.3-rc72",
-  "url": "https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc110.01.bin",
-  "size": 3491968,
-  "sha256": "c705fe3ca6c62559cced02652d0cb4b186dce4244e9297747507edfa931ea637",
-  "notes": "合并官方 Pico RC110 与 S31 RC118 基线：快速灰阶翻页、低残影模式、12 小时制、S31 恢复 RC110 水波纹；修复官方修复随基线带入、保留本地修复。"
+  "url": "https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc110.02.bin",
+  "size": 3491888,
+  "sha256": "ab39a97aeb3112383b77e2353041bfa67eba77debed14de21db6810a276dec30",
+  "notes": "修复设置首页与各二级页下方总是多出「显示」分组一整块、同一处重复绘制还让「显示」二级页滚动后出现重复行（主页刷新模式、首页强刷连排两遍）。"
 }
