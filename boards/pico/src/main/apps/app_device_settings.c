@@ -1867,21 +1867,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"快刷":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"水波纹":"普通",
         app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"先浅后深":"彻底断电",app_setup_english()?"English":"简体中文",""};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,2,SETTINGS_LOWGHOST_SWITCH_ICON};
-    setting_group(fb,SETTINGS_DISPLAY_Y-49,"显示",SETTINGS_DISPLAY_Y,
-                  display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
-    if (s_lowghost_dialog) {
-        const EpdRect dialog = {68, 435, 548, 306};
-        ui_fill_round_rect(fb, dialog, 26, UI_GRAY_WHITE);
-        ui_draw_control_frame(fb, dialog, 26, 0x50);
-        ui_text_vc(fb, 342, 495, 29, "开启低残影模式？", EPD_DRAW_ALIGN_CENTER, false);
-        ui_text_vc(fb, 342, 552, 20, "阅读时残影更少、翻页更干净", EPD_DRAW_ALIGN_CENTER, false);
-        ui_text_vc(fb, 342, 590, 20, "耗电会增加，续航大约减少 5%", EPD_DRAW_ALIGN_CENTER, false);
-        const EpdRect cancel = {94, 643, 232, 68}, confirm = {358, 643, 232, 68};
-        ui_fill_round_rect(fb, cancel, 18, 0xe0);
-        ui_fill_round_rect(fb, confirm, 18, 0x30);
-        ui_text_vc(fb, 210, 677, 24, "取消", EPD_DRAW_ALIGN_CENTER, false);
-        ui_text_vc(fb, 474, 677, 24, "开启", EPD_DRAW_ALIGN_CENTER, true);
-    }
+    // 中文：显示分组只在它自己的二级页画。索引页先无条件画一遍「显示」是 rc106 单列长列表的
+    //       遗留——索引只列 4 个分组，这 9 行会从「显示」标题下方露出来，看得见却点不到。
+    // English: The display group is painted only on its own page. Painting it unconditionally was a
+    //          leftover from the rc106 single long list: the index lists four groups only, so these
+    //          nine rows leaked below the "显示" heading — visible but untappable.
     snprintf(signature,sizeof(signature),"%s",app_settings_status_signature()[0]?app_settings_status_signature():"未设置");
     const char *personal_labels[]={"书架样式","书籍百分比显示","锁屏样式","锁屏密码","状态栏签名"};
     const char *personal_values[]={app_settings_shelf_style()==5?"列表书架":app_settings_shelf_style()==6?"液态玻璃书架":app_settings_shelf_style()==1?"深色书轨":"亚克力书架","",
@@ -1911,6 +1901,19 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     } else if (s_main_group == 1) {
         setting_group(fb,SETTINGS_GROUP_TOP-49,"显示",SETTINGS_GROUP_TOP,
                       display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
+        if (s_lowghost_dialog) {
+            const EpdRect dialog = {68, 435, 548, 306};
+            ui_fill_round_rect(fb, dialog, 26, UI_GRAY_WHITE);
+            ui_draw_control_frame(fb, dialog, 26, 0x50);
+            ui_text_vc(fb, 342, 495, 29, "开启低残影模式？", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 342, 552, 20, "阅读时残影更少、翻页更干净", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 342, 590, 20, "耗电会增加，续航大约减少 5%", EPD_DRAW_ALIGN_CENTER, false);
+            const EpdRect cancel = {94, 643, 232, 68}, confirm = {358, 643, 232, 68};
+            ui_fill_round_rect(fb, cancel, 18, 0xe0);
+            ui_fill_round_rect(fb, confirm, 18, 0x30);
+            ui_text_vc(fb, 210, 677, 24, "取消", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 474, 677, 24, "开启", EPD_DRAW_ALIGN_CENTER, true);
+        }
     } else if (s_main_group == 2) {
         setting_group(fb,SETTINGS_GROUP_TOP-49,"个性化功能",SETTINGS_GROUP_TOP,
                       personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
