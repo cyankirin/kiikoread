@@ -119,8 +119,14 @@ static esp_err_t lock_resume_media_io(uint32_t wait_ms) {
     //         pins the whole boot to the built-in face, which is the reboot-only symptom.
     if (font != ESP_OK)
         ESP_LOGW(TAG, "wake font reopen failed: %s; keeping path for reload", esp_err_to_name(font));
-    if (book == ESP_OK) s_lock_io_pending = false;
-    return lock_media_result(book);
+    if (book != ESP_OK)
+        ESP_LOGW(TAG, "wake book reopen failed: %s; page will reload it", esp_err_to_name(book));
+    // 中文：卡已验证挂载就等于交接完成。书本重开失败只影响那一页，不能让它继续代表
+    //       “媒体未就绪”，否则字体与本轮会话都会被永久挡在内建字体上（现场只能重启）。
+    // English: A verified mount completes the handoff. A failed book reopen affects that page
+    //         only; leaving it to represent "media not ready" pins faces and the session.
+    s_lock_io_pending = false;
+    return book == ESP_OK ? ESP_OK : lock_media_result(book);
 }
 static void lock_resume_io_service(void) {
     metalio_sleep_report_reset();

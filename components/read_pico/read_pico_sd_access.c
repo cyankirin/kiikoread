@@ -94,6 +94,12 @@ void read_pico_sd_access_transition_end(void) {
 void read_pico_sd_access_set_mounted(bool mounted) {
     portENTER_CRITICAL(&s_lock);s_mounted=mounted;portEXIT_CRITICAL(&s_lock);
 }
+bool read_pico_sd_access_allowed(void) {
+    portENTER_CRITICAL(&s_lock);
+    const bool allowed=s_mounted;
+    portEXIT_CRITICAL(&s_lock);
+    return allowed;
+}
 static int reserve_handle(bool directory) {
     portENTER_CRITICAL(&s_lock);
     for(int i=0;i<SD_HANDLES;i++)if(!s_handles[i].used) {

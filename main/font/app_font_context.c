@@ -10,6 +10,7 @@
  */
 #include "app_font_context.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include "esp_log.h"
@@ -53,7 +54,17 @@ static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
     // forcing the built-in one.
     if (pico_boot_recovery() && !s_user_choice) return TTF_FONT_BUILTIN;
 #if KIIKO_BOARD_METALIO47
-    if(app_sleep_media_pending() || !read_pico_sd_io_ready())return ttf_font_path();
+    // 中文：字体只看真实的卡状态（已挂载且门禁放行），不再被“唤醒交接未确认”的全局
+    //       挂起标志连坐——那个标志一旦因书本重开失败而挂住，整次开机就只能用内建字体。
+    // English: Faces depend only on real media state (mounted and admitted), never on the
+    //          wake-handoff flag; a wedged flag used to pin the whole boot to the built-in face.
+    if(!read_pico_sd_io_ready()){
+        static int64_t warned_us;
+        const int64_t now=esp_timer_get_time();
+        if(now>=warned_us){warned_us=now+INT64_C(2000000);
+            ESP_LOGW("font_context","system face deferred: media not io-ready (pending=%d)",(int)app_sleep_media_pending());}
+        return ttf_font_path();
+    }
 #endif
     const char* chosen = app_settings_system_font_path();
     if (chosen[0]) return chosen;
@@ -70,7 +81,10 @@ static bool activate(const char* path) {
 #if KIIKO_BOARD_METALIO47
     // 有意暂停TF时不stat/卸载旧槽；挂载恢复后沿原选择重试。
     // Do not stat/unload retained faces while media is intentionally paused; retry the saved choice after mount.
-    if(!ttf_font_path_is_builtin(path) && (app_sleep_media_pending() || !read_pico_sd_io_ready()))return false;
+    if(!ttf_font_path_is_builtin(path) && !read_pico_sd_io_ready()){
+        ESP_LOGW("font_context","activate %s deferred: media not io-ready (pending=%d)",path,(int)app_sleep_media_pending());
+        return false;
+    }
     const bool had_builtin=ttf_font_ready()&&ttf_font_is_builtin();
 #endif
     struct stat st = {0};
@@ -238,8 +252,7 @@ void app_font_end_lock(const app_lock_font_t *saved) {
     if(ttf_font_path_is_builtin(restore)) restore=TTF_FONT_BUILTIN;
     // activate的false也表示“暂缓/未改变”，不能据此卸载仍待恢复的字体。
     // False also means deferred/unchanged; it must not discard a face still awaiting IO restoration.
-    if (!app_sleep_media_pending() &&
-        (ttf_font_path_is_builtin(restore)||read_pico_sd_io_ready())) (void)activate(restore);
+    if (ttf_font_path_is_builtin(restore)||read_pico_sd_io_ready()) (void)activate(restore);
 #else
 #endif
     ttf_set_stroke_adjust_fine(s_reading ? app_settings_book_weight_fine() : 0);

@@ -16,6 +16,7 @@ static bool access_busy;
 bool read_pico_sd_access_transition_begin(uint32_t ms){(void)ms;return !access_busy;}
 void read_pico_sd_access_transition_end(void){}
 void read_pico_sd_access_set_mounted(bool mounted){(void)mounted;}
+bool read_pico_sd_access_allowed(void){return true;}
 static bool raw_mode,raw_need_single,raw_deinit_fail;
 static int raw_clock,raw_width,raw_limit=20000,raw_inits,raw_stops;
 static bool test_present, test_exfat, test_raw_error;

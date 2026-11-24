@@ -938,6 +938,14 @@ static bool poll_media(app_ctx_t* ctx, const app_desc_t* current,
     if (gained && current->on_media_ready) current->on_media_ready(ctx);
 #if KIIKO_BOARD_METALIO47
     bool font_restored=gained && app_font_recover_media();
+    // 挂载已验证但书本文件重开失败：只重载这一页，不再让它继续代表“媒体未就绪”。
+    // A verified mount with a failed book reopen only reloads that page; it must not
+    // keep standing in for "media not ready".
+    if (ready && app_sleep_book_reopen_failed()) {
+        app_sleep_discard_media_io();
+        if (current == &app_book) app_book_wake_file_failed(ctx);
+        if (!gained) font_restored = app_font_recover_media();
+    }
 #endif
     if (!lost) {
         if (!ready) recover_media(ctx,&info);

@@ -11,6 +11,8 @@ bool read_pico_sd_access_transition_begin(uint32_t timeout_ms);
 void read_pico_sd_access_transition_end(void);
 /// 仅由持有生命周期权限的驱动发布可用状态。/ Only the lifecycle owner publishes filesystem availability.
 void read_pico_sd_access_set_mounted(bool mounted);
+/// 读取门禁是否放行（挂载且未暂停）；只查询，不建立访问。/ Query whether admission is open; does not create access.
+bool read_pico_sd_access_allowed(void);
 
 /// 完整写入事务包含关闭后的改名和清理；自动在离开作用域时归还。/ Whole write transactions include post-close rename/cleanup and release on scope exit.
 typedef struct {bool allowed, active;} read_pico_sd_access_scope_t;

@@ -765,7 +765,9 @@ bool read_pico_sd_io_ready(void) {
     portENTER_CRITICAL(&state_lock);
     bool ready = !suspended && probe_state != 1 && cached_info.mounted && !media_invalidated;
     portEXIT_CRITICAL(&state_lock);
-    return ready;
+    // 缓存快照说已挂载还不够：门禁没放行时 open 会返回 EBUSY。
+    // A mounted snapshot is not enough: without admission, open fails with EBUSY.
+    return ready && read_pico_sd_access_allowed();
 }
 esp_err_t read_pico_sd_invalidate_io(void) {
     portENTER_CRITICAL(&state_lock);
