@@ -230,9 +230,14 @@
       "reason": "合并官方 rc110/rc118 基线(5b4cd6c)带入该文件的官方更新；按合入字节重登记，已核对与上游 tag 一致。"
     },
     "boards/metalio47/src/main/sleep.c": {
-      "sha256": "921f372dfd5eafdd3a3eb01ef261f1530e0b216e6da080568bf69ab8d281bc49",
-      "source_commit": "93d76daa9571fe0d1ddbabe879d3834249f7c5d7",
-      "reason": "用户2026-11-23要求修复S31休眠唤醒后概率性字库失效：lock_resume_media_io 不再用字体重开失败拖住全局媒体挂起，字体局部失败交由 app_font 按路径重载；按修复后的合入字节登记（rc118.02）。/ User 2026-11-23 asked to fix the S31 wake-time font loss: lock_resume_media_io no longer pins the global media-pending flag when the font reopen fails; the font falls back to a path reload. Recorded from the fixed bytes (rc118.02)."
+      "sha256": "d3f0b84472e25b1a3f11eb16a57216fdff7269a40d3bc5cf7abe0a0c31749b6b",
+      "source_commit": "858b460ad358f72e74a1956277ef3fbc6f9bbe1f",
+      "reason": "用户2026-11-24指出rc118.02未解决S31唤醒字库失效，要求继续改：卡已验证挂载即释放唤醒挂起标志，书本重开失败只交页面重载，不再让一次书本失败把整机钉在内建字体；按修复后的合入字节登记（rc118.04）。/ User 2026-11-24 said rc118.02 did not fix the S31 wake-time font loss and asked to keep going: a verified mount now releases the wake-pending flag, and a failed book reopen is left to the page instead of pinning the device to the built-in face. Recorded from the fixed bytes (rc118.04)."
+    },
+    "boards/metalio47/src/components/read_pico/read_pico_sd.c": {
+      "sha256": "a0d23a0815ac237014042ffd27de2e8db9ee49a33ad22cf6faff8bb194b0b1dc",
+      "source_commit": "858b460ad358f72e74a1956277ef3fbc6f9bbe1f",
+      "reason": "用户2026-11-24要求继续修S31唤醒字库失效：io_ready 叠加门禁状态，避免缓存快照与门禁背离时字体误判为可读；按修复后的合入字节登记（rc118.04）。/ User 2026-11-24 asked to keep fixing the S31 wake-time font loss: io_ready now also requires admission, so a stale mounted snapshot cannot make faces look readable while open would return EBUSY. Recorded from the fixed bytes (rc118.04)."
     },
     "components/metalio_hw/CMakeLists.txt": {
       "sha256": "75f3504a8850c7275cbdd986d08947fe182661b1f308b3cf6480afb4f86ff36f",
@@ -263,11 +268,6 @@
       "sha256": "2d9ff9aca72a9bece1d0a44d20de488c6a32851ce0afab62532911f32db4e461",
       "source_commit": "5b4cd6c",
       "reason": "合并官方 rc110/rc118 基线(5b4cd6c)带入该文件的官方更新；按合入字节重登记，已核对与上游 tag 一致。"
-    },
-    "boards/metalio47/src/components/read_pico/read_pico_sd.c": {
-      "sha256": "10db62cc18ac3195b46bce6ec25f872bac53fd8381e4b97692071c0849409046",
-      "source_commit": "81e0d871e199c78a0c6fc0ccb53cf0826ccde9ef",
-      "reason": "合并官方 rc108 基线带入该文件的官方更新，上游未刷新本夹具钉定值；按合入字节登记，已核对与 v0.3.3-rc108 完全相同，不含本 fork 的本地修改。Upstream v0.3.3-rc108 changed this file without refreshing the pin; recorded from the merged bytes, verified byte-identical to the tag, so no fork-local edit is vouched for."
     },
     "components/read_pico/CMakeLists.txt": {
       "sha256": "8aecef52d3c4b20cce992ba2672744d8c996b5f8699bf195b96b45a9437d6721",
