@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc118.03",
+  "version": "0.3.3-rc118.04",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "0.3.3-rc98",
-  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.03.bin",
-  "size": 4786768,
-  "sha256": "8424f3072ecca179cc95bf1667ee892c8054400f3f3e8321fcadc857302feeeb",
-  "notes": "官方 S31 RC118 基线（Anki 版）修复“保存配置到 TF 卡”失败：卡内已有备份时不再改名覆盖，改为先删旧件再写入，错误码 0xFFFFFFFF 不再出现。唤醒后字库失效的修复继续生效。"
+  "url": "https://cyankirin.github.io/kiikoread/Metalio-S31-update-0.3.3-rc118.04.bin",
+  "size": 4787136,
+  "sha256": "8ebe506ff98500e86cbacc7afcdde491a4531ccc6887bf6fed78dff8831ef1db",
+  "notes": "官方 S31 RC118 基线（Anki 版）：修复休眠唤醒后字体概率性退回内置字体——字体只认卡是否真的可读，书本重开失败不再拖住整机；唤醒交接在挂载验证后立即释放。"
 }
