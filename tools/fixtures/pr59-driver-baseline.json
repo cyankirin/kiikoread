@@ -230,9 +230,9 @@
       "reason": "合并官方 rc110/rc118 基线(5b4cd6c)带入该文件的官方更新；按合入字节重登记，已核对与上游 tag 一致。"
     },
     "boards/metalio47/src/main/sleep.c": {
-      "sha256": "d3f0b84472e25b1a3f11eb16a57216fdff7269a40d3bc5cf7abe0a0c31749b6b",
-      "source_commit": "858b460ad358f72e74a1956277ef3fbc6f9bbe1f",
-      "reason": "用户2026-11-24指出rc118.02未解决S31唤醒字库失效，要求继续改：卡已验证挂载即释放唤醒挂起标志，书本重开失败只交页面重载，不再让一次书本失败把整机钉在内建字体；按修复后的合入字节登记（rc118.04）。/ User 2026-11-24 said rc118.02 did not fix the S31 wake-time font loss and asked to keep going: a verified mount now releases the wake-pending flag, and a failed book reopen is left to the page instead of pinning the device to the built-in face. Recorded from the fixed bytes (rc118.04)."
+      "sha256": "d53e115c73cb5fbd8b07acc13a481960d17b241e9a71fceed06b202a19368885",
+      "source_commit": "abf4262645a5cb5b6c2ecb3e32cbb6abb5ce0a90",
+      "reason": "用户2026-11-24反馈rc118.04仍未解决S31长时间休眠唤醒后字体回退内建：过门禁后无条件落一次“开机已完成”，不再让 starting 泄漏到下一次开机被当成异常启动；按修复后的合入字节登记（rc118.05）。/ User 2026-11-24 reported rc118.04 still reverts faces after a long sleep: the gate now always marks the boot complete so a leaked `starting` marker cannot make the next boot look abnormal. Recorded from the fixed bytes (rc118.05)."
     },
     "boards/metalio47/src/components/read_pico/read_pico_sd.c": {
       "sha256": "a0d23a0815ac237014042ffd27de2e8db9ee49a33ad22cf6faff8bb194b0b1dc",
