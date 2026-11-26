@@ -53,6 +53,7 @@ on-device; no Anki runtime, network or PC is required.
 | 操作 / Input | 行为 / Behavior |
 | --- | --- |
 | 轻点卡片正面 / tap the front | 翻到背面 / flip to the back |
+| 轻点填空卡的某一行 / tap a line on a fill-in front | 只揭示该段答案，不翻面 / reveal that paragraph only |
 | 轻点背面评分钮 / tap a grade button | 记录评分并进入下一张 / grade and advance |
 | 中键（KEY2）/ middle key | 翻面；小结页确认返回 / flip; confirm on the summary |
 | 长按中键 / long-press middle | 结束本组学习 / end the session |
@@ -85,6 +86,37 @@ template script:
   `答案：X` and `备注：` when the note field is set.
 - 其余卡组继续走模板路径，行为不变。
   Every other deck keeps the template path unchanged.
+
+### 逐句回想填空卡 / Fill-in (line-by-line recall) cards
+
+模板把答案写在 `<span class="t">` 里再用笔记类型 CSS `display:none` 藏住、正面只剩
+`<span class="d" style="width:Nem"></span>` 这类空条的卡组（例如「高考必背 60 篇」），
+走填空版面。固件不解析 CSS，因此按结构重建：答案不印在正面，空条按宽度画全角横线
+`＿`（每 em 一格，2~14 格封顶），**轻点哪一行就只揭示哪一段**。
+
+Decks that hide the answer in `<span class="t">` via notetype CSS and leave only
+width-sized `<span class="d" style="width:Nem"></span>` blanks on the front
+(the “60 classical texts” deck, for instance) take the fill-in layout. The
+firmware evaluates no CSS, so it rebuilds the structure: answers never print on
+the front, blanks become full-width bars `＿` (one per em, 2–14 cells), and a
+tap reveals exactly the paragraph that was tapped.
+
+- **正面 / Front**：按段落输出；未揭示段落只出横线，已揭示段落换成答案，其余
+  同级空条同时揭示。标题、作者等没有空条的段落照常显示。
+  Paragraph-wise: unrevealed paragraphs show bars, a revealed one prints its
+  answers (all blanks in that paragraph reveal together), and paragraphs without
+  blanks (title, author) always show.
+- **交互 / Interaction**：点行揭示不翻面；再点已揭示的那段也不翻面（想看清不会
+  误跳背面）；点非正文位置或按中键照旧翻面。揭示后页会定位到该段首行。
+  A tap on a text line reveals instead of flipping; tapping an already revealed
+  paragraph also does not flip, so a second glance never jumps to the back;
+  taps outside the text band and the middle key still flip. The page is
+  anchored to the revealed paragraph's first line.
+- **判定 / Detector**：只有同时出现 `class="d"`、`class="t"` 与 `width:` 的笔记才
+  走这条路径，其他卡组行为不变；背面仍走普通模板渲染。
+  Only notes carrying `class="d"`, `class="t"` and `width:` together take this
+  path; every other deck is unchanged and the back keeps plain rendering.
+
 
 ## 实现位置 / Implementation map
 

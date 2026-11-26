@@ -266,6 +266,45 @@ def gen_cloze():
     pack_apkg(os.path.join(OUT, "cloze-v2.apkg"), db)
 
 
+def gen_fillin():
+    """逐句回想型填空：正面只剩宽度空条，答案藏在 span.t 里由笔记类型 CSS 隐去。
+    / Line-by-line recall fill-in: the front keeps width-sized blank bars and the
+    answers sit in span.t, hidden by the notetype CSS."""
+    body = (
+        '<p class="h">《测试》</p>'
+        '<p><label class="b"><input type="checkbox">'
+        '<span class="d" style="width:5.15em"></span>'
+        '<span class="t">第一句答案</span></label></p>'
+        '<p><label class="b"><input type="checkbox">'
+        '<span class="d" style="width:10.30em"></span>'
+        '<span class="t">第二句一</span></label>'
+        '<label class="b"><input type="checkbox">'
+        '<span class="d" style="width:5.15em"></span>'
+        '<span class="t">第二句二</span></label></p>'
+    )
+    models = {
+        "1700000000400": {
+            "id": 1700000000400,
+            "name": "逐句回想",
+            "flds": [{"name": "正文", "ord": 0}, {"name": "背面", "ord": 1}],
+            "tmpls": [
+                {
+                    "name": "卡片 1",
+                    "ord": 0,
+                    "qfmt": "<div>{{正文}}</div>",
+                    "afmt": "<div>{{背面}}</div>",
+                }
+            ],
+        }
+    }
+    decks = {"1700000000401": {"id": 1700000000401, "name": "回想卡组", "conf": 1}}
+    notes = [note(1700000000401, 1700000000400, body + "\x1f背面说明")]
+    cards = [card(1700000000401, 1700000000401, 1700000000401)]
+    db = os.path.join(OUT, "fillin.anki2")
+    write_v2(db, models, decks, notes, cards)
+    pack_apkg(os.path.join(OUT, "fillin-v2.apkg"), db)
+
+
 def gen_v3():
     """anki21 v3 schema：两个普通卡组 + 一个过滤卡组 + 两个笔记类型。
     / anki21 v3 schema: two normal decks plus one filtered deck and two notetypes."""
@@ -554,6 +593,7 @@ def main():
     gen_v1_scheduler()
     gen_conditional()
     gen_cloze()
+    gen_fillin()
     gen_choice_v2()
     gen_v3()
     gen_big()

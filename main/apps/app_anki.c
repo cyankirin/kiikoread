@@ -75,6 +75,14 @@ typedef struct {
     int session_pos;
     bool show_back;
     bool back_loaded;
+    // 填空式正面：段落起点与「是否含空条」，揭示状态按段落位图记在本张卡上。
+    // Fill-in front: paragraph offsets, per-paragraph blank flags, and the
+    // per-card reveal bitmap (reset when a new card opens).
+    bool fillin;
+    uint64_t reveal;
+    int para_count;
+    int para_off[ANKI_FILLIN_PARAS];
+    uint8_t para_blank[ANKI_FILLIN_PARAS];
     char front[ANKI_CARD_TEXT_MAX];
     char back[ANKI_CARD_TEXT_MAX];
     // 折行结果：行号、高度、缩进与反色标记都归排版单元管。
@@ -398,8 +406,96 @@ static void session_load_back(void) {
 static void session_load_front(void) {
     anki_collection_t col = session_collection();
     const anki_card_t* card = &SESS()->deck.cards[SESS()->session[SESS()->session_pos]];
-    if (anki_render_front(&col, card, SESS()->front, sizeof(SESS()->front)) != ESP_OK) {
+    SESS()->fillin = false;
+    SESS()->reveal = 0;
+    SESS()->para_count = 0;
+    // 填空式卡先按「空条 + 隐藏答案」逐段渲染：只有真的出现空条才算填空卡，
+    // 否则回落到普通模板渲染，其他卡组行为不变。
+    // Fill-in cards render paragraph-wise first; only a real blank bar makes
+    // the card a fill-in one, otherwise plain template rendering takes over so
+    // other decks keep their existing behaviour.
+    if (anki_card_fillin(&col, card)) {
+        int n = 0;
+        if (anki_render_fillin(&col, card, 0, SESS()->front, sizeof(SESS()->front),
+                               SESS()->para_off, SESS()->para_blank, ANKI_FILLIN_PARAS,
+                               &n) == ESP_OK &&
+            n > 0) {
+            bool any = false;
+            for (int i = 0; i < n; ++i) any = any || SESS()->para_blank[i];
+            SESS()->fillin = any;
+            SESS()->para_count = n;
+        }
+    }
+    if (!SESS()->fillin &&
+        anki_render_front(&col, card, SESS()->front, sizeof(SESS()->front)) != ESP_OK) {
         snprintf(SESS()->front, sizeof(SESS()->front), "[卡片渲染失败]");
+    }
+}
+
+/// 当前页第 y 个像素落在哪一行；不在正文行上返回 -1。行高与绘制同源。
+/// Which displayed line owns pixel y on the current page; -1 outside the text
+/// band. Line heights come from the same layout the renderer uses.
+static int study_line_at(uint16_t x, uint16_t y) {
+    if (x < UI_MARGIN || x > UI_MARGIN + ui_content_width()) return -1;
+    int first = 0, count = 0, pages = 1;
+    anki_layout_page_map(&SESS()->layout, SESS()->layout.line_page, &first, &count, &pages);
+    int top = UI_CONTENT_TOP + 8;
+    for (int k = 0; k < count; ++k) {
+        const int i = first + k;
+        const int h = SESS()->layout.line_height[i];
+        if (y >= top && y < top + h) return i;
+        top += h;
+    }
+    return -1;
+}
+
+/// 行号换算到段落号（段落起点之间的行都属于同一段），找不到返回 -1。
+/// Map a displayed line back to its paragraph; -1 when it cannot be mapped.
+static int study_para_at(int line) {
+    if (line < 0 || line >= SESS()->layout.line_count) return -1;
+    const int off = (int)SESS()->layout.line_off[line];
+    int para = -1;
+    for (int p = 0; p < SESS()->para_count; ++p) {
+        if (SESS()->para_off[p] <= off) para = p;
+        else break;
+    }
+    return para;
+}
+
+/// 揭示某一段的答案并重排；页定位到该段首行，避免揭示后视线跳走。
+/// Reveal one paragraph's answers and relayout, anchoring the page to the
+/// paragraph's first line so the eye does not jump.
+static void session_reveal(int para) {
+    if (para < 0 || para >= SESS()->para_count) return;
+    anki_collection_t col = session_collection();
+    const anki_card_t* card = &SESS()->deck.cards[SESS()->session[SESS()->session_pos]];
+    SESS()->reveal |= (1ull << (unsigned)para);
+    int n = 0;
+    if (anki_render_fillin(&col, card, SESS()->reveal, SESS()->front, sizeof(SESS()->front),
+                           SESS()->para_off, SESS()->para_blank, ANKI_FILLIN_PARAS,
+                           &n) != ESP_OK) {
+        SESS()->reveal &= ~(1ull << (unsigned)para);
+        return;
+    }
+    SESS()->para_count = n;
+    SESS()->layout.text = SESS()->front;
+    SESS()->layout.show_back = false;
+    SESS()->layout.band = study_band();
+    anki_layout_run(&SESS()->layout, ui_text_effective_px(UI_PX_BODY));
+
+    int line = 0;
+    for (int i = 0; i < SESS()->layout.line_count; ++i) {
+        if (SESS()->layout.line_off[i] <= SESS()->para_off[para]) line = i;
+        else break;
+    }
+    int first = 0, count = 0, pages = 1;
+    for (int p = 0; p < pages; ++p) {
+        anki_layout_page_map(&SESS()->layout, p, &first, &count, &pages);
+        if (line >= first && line < first + count) {
+            SESS()->layout.line_page = p;
+            break;
+        }
+        if (p + 1 >= pages) break;
     }
 }
 
@@ -737,8 +833,16 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
                         EPD_DRAW_ALIGN_LEFT, false);
             }
             if (!SESS()->show_back) {
-                ui_text(fb, UI_MARGIN, UI_CONTENT_BOTTOM - UI_PX_CAPTION - 6, UI_PX_CAPTION,
-                        pages > 1 ? "上下滑翻页 · 轻点或中键翻面" : "轻点或按中键翻面",
+                // 填空卡：轻点即揭示该段，底部提示说清这条交互。
+                // Fill-in cards: a tap reveals that paragraph, so the hint has
+                // to say so.
+                const char* hint;
+                if (SESS()->fillin) {
+                    hint = pages > 1 ? "点行显字 · 滑动翻页 · 中键答案" : "点行显字 · 中键看答案";
+                } else {
+                    hint = pages > 1 ? "上下滑翻页 · 轻点或中键翻面" : "轻点或按中键翻面";
+                }
+                ui_text(fb, UI_MARGIN, UI_CONTENT_BOTTOM - UI_PX_CAPTION - 6, UI_PX_CAPTION, hint,
                         EPD_DRAW_ALIGN_LEFT, false);
             } else {
                 // 评分按钮。/ Grade buttons.
@@ -1040,7 +1144,24 @@ static app_redraw_t handle_tap(uint16_t x, uint16_t y, app_ctx_t* ctx) {
                 }
                 return APP_REDRAW_NONE;
             }
-            // 正面：轻点翻面。/ Front: tap flips.
+            // 正面：填空卡先按行揭示，点在哪一行就出哪一行；其余位置照旧翻面。
+            // Front: a fill-in card reveals the tapped line first; anywhere
+            // else keeps the plain flip.
+            if (SESS()->fillin) {
+                const int line = study_line_at(x, y);
+                if (line >= 0) {
+                    const int para = study_para_at(line);
+                    if (para >= 0 && SESS()->para_blank[para]) {
+                        if (((SESS()->reveal >> (unsigned)para) & 1ull) == 0) {
+                            session_reveal(para);
+                        }
+                        // 已揭示的该段再点不再翻面，避免想看清时误跳背面。
+                        // Tapping an already-revealed paragraph does not flip,
+                        // so a second glance never jumps to the back.
+                        return APP_REDRAW_PAGE;
+                    }
+                }
+            }
             session_show_back();
             return APP_REDRAW_PAGE;
         }

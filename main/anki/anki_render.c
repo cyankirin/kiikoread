@@ -737,8 +737,12 @@ static esp_err_t render_choice_back(const anki_collection_t* col, const anki_car
     return ESP_OK;
 }
 
-static esp_err_t render_card(const anki_collection_t* col, const anki_card_t* card, bool back,
-                             const char* front_text, char* out, size_t cap) {
+/// 按模板把字段替换成 HTML，结果 NUL 结尾，长度经 out_len 回报。
+/// Substitute the template into HTML; the result is NUL-terminated and its
+/// length is reported through out_len.
+static esp_err_t build_card_html(const anki_collection_t* col, const anki_card_t* card, bool back,
+                                 const char* front_text, char* html, size_t cap,
+                                 size_t* out_len) {
     const anki_note_t* note = view_note(col, card->nid);
     if (!note) return ESP_ERR_NOT_FOUND;
     const anki_notetype_t* nt = view_notetype(col, note->mid);
@@ -747,12 +751,7 @@ static esp_err_t render_card(const anki_collection_t* col, const anki_card_t* ca
     const char* format = back ? tpl->afmt : tpl->qfmt;
     if (!format) return ESP_ERR_NOT_FOUND;
 
-    // 中间 HTML 走堆：内部 RAM 静态占用已近满，不给 BSS 添 48KB。
-    // The intermediate HTML is heap-allocated: internal RAM is nearly full of
-    // statics, so BSS must not grow by 48KB.
-    char* html = malloc(HTML_BUILD_MAX);
-    if (!html) return ESP_ERR_NO_MEM;
-    builder_t builder = {.out = html, .len = 0, .cap = HTML_BUILD_MAX, .overflow = false};
+    builder_t builder = {.out = html, .len = 0, .cap = cap, .overflow = false};
     render_ctx_t rc = {0};
     rc.nt = nt;
     rc.front_text = front_text;
@@ -763,14 +762,26 @@ static esp_err_t render_card(const anki_collection_t* col, const anki_card_t* ca
     rc.reveal_cloze = back;
     split_fields(&rc, note->flds, strlen(note->flds), NULL, nt->field_count);
     substitute(&rc, &builder, format, strlen(format));
-    esp_err_t err = ESP_OK;
     if (builder.overflow) {
         ESP_LOGW(TAG, "template output overflow");
-        err = ESP_ERR_INVALID_SIZE;
-    } else {
-        html[builder.len] = 0;
-        err = html_to_text(html, builder.len, out, cap);
+        return ESP_ERR_INVALID_SIZE;
     }
+    html[builder.len] = 0;
+    *out_len = builder.len;
+    return ESP_OK;
+}
+
+static esp_err_t render_card(const anki_collection_t* col, const anki_card_t* card, bool back,
+                             const char* front_text, char* out, size_t cap) {
+    // 中间 HTML 走堆：内部 RAM 静态占用已近满，不给 BSS 添 48KB。
+    // The intermediate HTML is heap-allocated: internal RAM is nearly full of
+    // statics, so BSS must not grow by 48KB.
+    char* html = malloc(HTML_BUILD_MAX);
+    if (!html) return ESP_ERR_NO_MEM;
+    size_t html_len = 0;
+    esp_err_t err =
+        build_card_html(col, card, back, front_text, html, HTML_BUILD_MAX, &html_len);
+    if (err == ESP_OK) err = html_to_text(html, html_len, out, cap);
     free(html);
     return err;
 }
@@ -812,3 +823,429 @@ esp_err_t anki_render_back(const anki_collection_t* col, const anki_card_t* card
     }
     return render_card(col, card, true, front_text, out, cap);
 }
+
+// ---------------------------------------------------------------- 填空式正面
+// 中文：这类模板（「逐句回想」等）把答案写在 `<span class="t">` 里，再靠笔记
+//       类型的 CSS `display:none` 藏起来；正面只剩宽度各异的空条 span.d。
+//       纯文本渲染不解析 CSS，会把答案直接印在正面。这里按「空条 + 隐藏答案」
+//       结构逐段重建：未揭示的段落画横线，已揭示的段落换成答案，界面据此做
+//       点哪行显哪行。
+// English: these templates (line-by-line recall and the like) put the answer in
+//          `<span class="t">` and hide it with the notetype CSS `display:none`,
+//          leaving width-sized blank bars in `span.d`. Plain-text rendering never
+//          evaluates CSS, so it printed the answer on the front. This rebuilds
+//          paragraph by paragraph: unrevealed paragraphs draw bars, revealed
+//          ones print the answer, which lets the UI reveal one line per tap.
+
+typedef struct {
+    char* out;
+    size_t cap, len;
+    bool overflow;
+    uint64_t mask;          // 已揭示段落位图 / revealed paragraph bitmap
+    int count;              // 已收口段落数 / paragraphs flushed so far
+    int max;                // off/blank 容量 / capacity of off and blank
+    int* off;               // 段起点 / paragraph start offsets
+    uint8_t* blank;         // 段内是否含空条 / paragraph holds a blank
+    size_t pstart;          // 当前段起点 / current paragraph start
+    bool open;              // 当前段是否已开始 / a paragraph is open
+    int blanks;             // 当前段空条数 / blanks in the current paragraph
+} fillb_t;
+
+static void fb_put(fillb_t* b, const char* s, size_t n) {
+    if (b->overflow || n == 0) return;
+    if (b->len + n >= b->cap) {
+        b->overflow = true;
+        return;
+    }
+    memcpy(b->out + b->len, s, n);
+    b->len += n;
+}
+
+static void fb_putc(fillb_t* b, char c) { fb_put(b, &c, 1); }
+
+/// 段内空格：折叠连续空白，段首不留空格。/ In-paragraph space: collapse
+/// runs and never leave one at the paragraph head.
+static void fb_space(fillb_t* b) {
+    if (!b->open || b->len == b->pstart) return;
+    if (b->out[b->len - 1] == ' ') return;
+    fb_putc(b, ' ');
+}
+
+static void fb_open_para(fillb_t* b) {
+    if (b->open) return;
+    b->open = true;
+    b->pstart = b->len;
+    b->blanks = 0;
+}
+
+static void fb_flush(fillb_t* b) {
+    if (!b->open) return;
+    while (b->len > b->pstart && b->out[b->len - 1] == ' ') --b->len;
+    if (b->len > b->pstart) {
+        if (b->count < b->max && b->off && b->blank) {
+            b->off[b->count] = (int)b->pstart;
+            b->blank[b->count] = b->blanks > 0 ? 1 : 0;
+        }
+        ++b->count;
+        fb_putc(b, '\n');
+    } else {
+        b->len = b->pstart; // 空白段丢弃 / discard a whitespace-only paragraph
+    }
+    b->open = false;
+}
+
+static bool fill_name_eq(const char* name, size_t len, const char* want) {
+    const size_t n = strlen(want);
+    return len == n && strncasecmp(name, want, n) == 0;
+}
+
+/// 取属性值（去引号）。返回 false 表示没这个属性。/ Read an attribute value
+/// (quotes stripped); false when absent.
+static bool fill_attr(const char* tag, size_t len, const char* want, const char** val,
+                      size_t* vlen) {
+    const size_t wn = strlen(want);
+    for (size_t i = 0; i + wn < len; ++i) {
+        if (i > 0 && !isspace((unsigned char)tag[i - 1]) && tag[i - 1] != '/') continue;
+        if (strncasecmp(tag + i, want, wn) != 0) continue;
+        size_t p = i + wn;
+        while (p < len && isspace((unsigned char)tag[p])) ++p;
+        if (p >= len || tag[p] != '=') continue;
+        ++p;
+        while (p < len && isspace((unsigned char)tag[p])) ++p;
+        if (p >= len) return false;
+        char quote = 0;
+        if (tag[p] == '"' || tag[p] == '\'') quote = tag[p++];
+        size_t s = p;
+        while (p < len && (quote ? tag[p] != quote
+                                 : (!isspace((unsigned char)tag[p]) && tag[p] != '>')))
+            ++p;
+        *val = tag + s;
+        *vlen = p - s;
+        return true;
+    }
+    return false;
+}
+
+static bool fill_class_has(const char* val, size_t len, const char* token) {
+    const size_t tn = strlen(token);
+    for (size_t i = 0; i < len;) {
+        while (i < len && isspace((unsigned char)val[i])) ++i;
+        size_t s = i;
+        while (i < len && !isspace((unsigned char)val[i])) ++i;
+        if (i - s == tn && strncasecmp(val + s, token, tn) == 0) return true;
+    }
+    return false;
+}
+
+/// 常见实体解码，返回吃掉的字节数；0 表示不是已知实体。/ Decode a common
+/// entity and return bytes consumed; 0 when unknown.
+static size_t fill_entity(const char* p, size_t rem, char* out) {
+    static const struct {
+        const char* name;
+        char ch;
+    } k_ent[] = {{"&nbsp;", ' '}, {"&amp;", '&'},  {"&lt;", '<'}, {"&gt;", '>'},
+                 {"&quot;", '"'},  {"&#39;", '\''}, {"&apos;", '\''}};
+    for (size_t i = 0; i < sizeof(k_ent) / sizeof(k_ent[0]); ++i) {
+        const size_t n = strlen(k_ent[i].name);
+        if (rem >= n && strncasecmp(p, k_ent[i].name, n) == 0) {
+            *out = k_ent[i].ch;
+            return n;
+        }
+    }
+    return 0;
+}
+
+/// 文本节点：折叠空白、解实体，段首字符开始一个新段。/ Text node: collapse
+/// spaces, decode entities, open a paragraph on the first non-space byte.
+static void fb_text(fillb_t* b, const char* s, size_t n) {
+    for (size_t i = 0; i < n;) {
+        const unsigned char c = (unsigned char)s[i];
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (b->open) fb_space(b);
+            ++i;
+            continue;
+        }
+        if (c == '&') {
+            char ch = 0;
+            const size_t used = fill_entity(s + i, n - i, &ch);
+            if (used) {
+                fb_open_para(b);
+                fb_putc(b, ch);
+                i += used;
+                continue;
+            }
+        }
+        fb_open_para(b);
+        fb_putc(b, (char)c);
+        ++i;
+    }
+}
+
+/// 答案文本：跳标签、解实体，不展开嵌套结构。/ Answer text: skip tags, decode
+/// entities, no nested structure evaluation.
+static void fill_answer(fillb_t* b, const char* s, size_t n) {
+    for (size_t i = 0; i < n;) {
+        if (s[i] == '<') {
+            size_t j = i;
+            while (j < n && s[j] != '>') ++j;
+            if (j >= n) break;
+            i = j + 1;
+            continue;
+        }
+        if (s[i] == '&') {
+            char ch = 0;
+            const size_t used = fill_entity(s + i, n - i, &ch);
+            if (used) {
+                fb_putc(b, ch);
+                i += used;
+                continue;
+            }
+        }
+        const unsigned char c = (unsigned char)s[i];
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            fb_space(b);
+            ++i;
+            continue;
+        }
+        fb_putc(b, (char)c);
+        ++i;
+    }
+}
+
+/// 空条宽度（em）换算成横线个数；宽度取自 `style="width:Nem"`，缺省 0。
+/// Blank width in em turned into bar cells; the width comes from
+/// `style="width:Nem"`, 0 when absent.
+static int fill_width_cells(const char* style, size_t len) {
+    for (size_t i = 0; i + 5 <= len; ++i) {
+        if (strncasecmp(style + i, "width", 5) != 0) continue;
+        size_t p = i + 5;
+        while (p < len && isspace((unsigned char)style[p])) ++p;
+        if (p >= len || style[p] != ':') continue;
+        ++p;
+        while (p < len && isspace((unsigned char)style[p])) ++p;
+        char num[16];
+        size_t k = 0;
+        while (p < len && k + 1 < sizeof(num) &&
+               (isdigit((unsigned char)style[p]) || style[p] == '.')) {
+            num[k++] = style[p++];
+        }
+        num[k] = 0;
+        if (k == 0) continue;
+        const double em = strtod(num, NULL);
+        if (em <= 0) continue;
+        int cells = (int)(em + 0.5);
+        if (cells < 2) cells = 2;
+        // 上限 14 格：38px 正文下 14 个全角字约 532px，仍窄于 604px 内容宽，
+        // 单条空条不会自己折行（最多只跟同行文字一起换行）。
+        // Cap at 14 cells: at 38px that is ~532px, still inside the 604px
+        // content width, so one blank never wraps on its own.
+        if (cells > 14) cells = 14;
+        return cells;
+    }
+    return 0;
+}
+
+/// 画一条空条（全角下划线，按 em 宽度给个数）。/ Draw one blank bar: one
+/// full-width underscore per em cell.
+static void fill_blank(fillb_t* b, int cells) {
+    static const char k_bar[] = "＿"; // U+FF3F，3 字节 / 3 bytes
+    for (int i = 0; i < cells && !b->overflow; ++i) fb_put(b, k_bar, 3);
+    fb_space(b);
+}
+
+/// HTML -> 逐段填空文本。段落以块级标签/换行分隔，空条按 reveal 位图换成
+/// 横线或答案。/ HTML to paragraph-wise fill-in text. Block tags and breaks
+/// split paragraphs; blanks become bars or answers per the reveal bitmap.
+static void fill_convert(const char* html, size_t len, fillb_t* b) {
+    static const char* const k_blocks[] = {"p",  "div", "li", "h1", "h2", "h3",
+                                           "h4", "h5",  "h6", "tr", "blockquote", "section"};
+    size_t i = 0;
+    while (i < len && !b->overflow) {
+        if (html[i] != '<') {
+            size_t j = i;
+            while (j < len && html[j] != '<') ++j;
+            fb_text(b, html + i, j - i);
+            i = j;
+            continue;
+        }
+        if (i + 3 < len && html[i + 1] == '!' && html[i + 2] == '-' && html[i + 3] == '-') {
+            size_t j = i + 4;
+            while (j + 2 < len && !(html[j] == '-' && html[j + 1] == '-' && html[j + 2] == '>')) ++j;
+            i = j + 2 < len ? j + 3 : len;
+            continue;
+        }
+        size_t j = i + 1;
+        char quote = 0;
+        while (j < len) {
+            const char c = html[j];
+            if (quote) {
+                if (c == quote) quote = 0;
+            } else if (c == '"' || c == '\'') {
+                quote = c;
+            } else if (c == '>') {
+                break;
+            }
+            ++j;
+        }
+        if (j >= len) {
+            fb_text(b, html + i, len - i);
+            break;
+        }
+        const char* tag = html + i + 1;
+        const size_t tlen = j - i - 1;
+        const bool close = tlen > 0 && tag[0] == '/';
+        const char* body = tag + (close ? 1 : 0);
+        const size_t blen = tlen - (close ? 1u : 0u);
+        size_t name_len = 0;
+        while (name_len < blen && !isspace((unsigned char)body[name_len]) &&
+               body[name_len] != '/')
+            ++name_len;
+        const char* name = body;
+
+        if (!close &&
+            (fill_name_eq(name, name_len, "script") || fill_name_eq(name, name_len, "style"))) {
+            const char* endtag =
+                fill_name_eq(name, name_len, "script") ? "</script" : "</style";
+            const size_t en = strlen(endtag);
+            size_t k = j + 1;
+            size_t found = len;
+            for (; k + en <= len; ++k) {
+                if (strncasecmp(html + k, endtag, en) == 0) {
+                    found = k;
+                    break;
+                }
+            }
+            if (found == len) break;
+            size_t q = found;
+            while (q < len && html[q] != '>') ++q;
+            i = q < len ? q + 1 : len;
+            continue;
+        }
+        if (fill_name_eq(name, name_len, "br")) {
+            fb_flush(b);
+            i = j + 1;
+            continue;
+        }
+        if (fill_name_eq(name, name_len, "img")) {
+            fb_open_para(b);
+            fb_put(b, "[图片]", 5);
+            fb_space(b);
+            i = j + 1;
+            continue;
+        }
+        if (fill_name_eq(name, name_len, "input") || fill_name_eq(name, name_len, "meta") ||
+            fill_name_eq(name, name_len, "link")) {
+            i = j + 1;
+            continue;
+        }
+        bool block = false;
+        for (size_t k = 0; k < sizeof(k_blocks) / sizeof(k_blocks[0]); ++k) {
+            if (fill_name_eq(name, name_len, k_blocks[k])) {
+                block = true;
+                break;
+            }
+        }
+        if (block) {
+            fb_flush(b);
+            i = j + 1;
+            continue;
+        }
+        // 空条 + 隐藏答案：`<span class="d" style="width:…em"></span>` 紧跟
+        // `<span class="t">答案</span>`。
+        // Blank plus hidden answer: the empty width span directly followed by
+        // the answer span.
+        if (!close && fill_name_eq(name, name_len, "span")) {
+            const char* cls = NULL;
+            size_t clen = 0;
+            const char* sty = NULL;
+            size_t slen = 0;
+            if (fill_attr(body, blen, "class", &cls, &clen) &&
+                fill_class_has(cls, clen, "d") && fill_attr(body, blen, "style", &sty, &slen)) {
+                const int cells = fill_width_cells(sty, slen);
+                if (cells > 0) {
+                    size_t p = j + 1;
+                    while (p < len && isspace((unsigned char)html[p])) ++p;
+                    if (p + 6 <= len && strncasecmp(html + p, "</span", 6) == 0) {
+                        size_t q = p;
+                        while (q < len && html[q] != '>') ++q;
+                        if (q < len) {
+                            size_t a = q + 1;
+                            while (a < len && isspace((unsigned char)html[a])) ++a;
+                            if (a + 5 <= len && strncasecmp(html + a, "<span", 5) == 0) {
+                                size_t e = a;
+                                while (e < len && html[e] != '>') ++e;
+                                const char* atag = html + a + 1;
+                                const size_t atlen = e - a - 1;
+                                const char* acls = NULL;
+                                size_t aclen = 0;
+                                if (e < len &&
+                                    fill_attr(atag, atlen, "class", &acls, &aclen) &&
+                                    fill_class_has(acls, aclen, "t")) {
+                                    size_t s = e + 1;
+                                    size_t stop = s;
+                                    while (stop + 6 <= len &&
+                                           strncasecmp(html + stop, "</span", 6) != 0)
+                                        ++stop;
+                                    const bool revealed =
+                                        ((b->mask >> (uint64_t)b->count) & 1u) != 0;
+                                    fb_open_para(b);
+                                    if (revealed) fill_answer(b, html + s, stop - s);
+                                    else fill_blank(b, cells);
+                                    fb_space(b);
+                                    ++b->blanks;
+                                    size_t z = stop + 6;
+                                    while (z < len && html[z] != '>') ++z;
+                                    i = z < len ? z + 1 : len;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        i = j + 1;
+    }
+    fb_flush(b);
+}
+
+bool anki_card_fillin(const anki_collection_t* col, const anki_card_t* card) {
+    if (!col || !card) return false;
+    const anki_note_t* note = view_note(col, card->nid);
+    if (!note) return false;
+    const bool dq = strstr(note->flds, "class=\"d\"") != NULL;
+    const bool sq = strstr(note->flds, "class='d'") != NULL;
+    if (!dq && !sq) return false;
+    const bool tq = strstr(note->flds, "class=\"t\"") != NULL || strstr(note->flds, "class='t'") != NULL;
+    return tq && strstr(note->flds, "width:") != NULL;
+}
+
+esp_err_t anki_render_fillin(const anki_collection_t* col, const anki_card_t* card,
+                             uint64_t reveal_mask, char* out, size_t cap, int* para_off,
+                             uint8_t* para_blank, int para_cap, int* para_count) {
+    if (!col || !card || !out || cap == 0 || !para_count) return ESP_ERR_INVALID_ARG;
+    *para_count = 0;
+    char* html = malloc(HTML_BUILD_MAX);
+    if (!html) return ESP_ERR_NO_MEM;
+    size_t html_len = 0;
+    esp_err_t err =
+        build_card_html(col, card, false, NULL, html, HTML_BUILD_MAX, &html_len);
+    if (err == ESP_OK) {
+        fillb_t b = {.out = out,
+                     .cap = cap,
+                     .mask = reveal_mask,
+                     .max = para_cap > 0 ? para_cap : 0,
+                     .off = para_off,
+                     .blank = para_blank};
+        fill_convert(html, html_len, &b);
+        if (b.overflow) {
+            err = ESP_ERR_INVALID_SIZE;
+        } else {
+            out[b.len] = 0;
+            *para_count = b.count < b.max ? b.count : b.max;
+        }
+    }
+    free(html);
+    return err;
+}
+

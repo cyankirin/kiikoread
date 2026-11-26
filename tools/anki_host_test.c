@@ -441,7 +441,67 @@ static void test_render(void) {
     anki_apkg_free(&imp);
 }
 
-// 选择题版面：正面与背面同构。正面 = 元信息行（模板里的 I / J / P）+ 
+// 填空式正面：答案藏在 span.t 里，未揭示的段落只出横线；位图逐段揭示。
+// Fill-in front: answers hide in span.t, unrevealed paragraphs show bars only,
+// and the bitmap reveals one paragraph at a time.
+static void test_fillin(void) {
+    printf("== fillin front ==\n");
+    static char front[ANKI_CARD_TEXT_MAX];
+    static int off[ANKI_FILLIN_PARAS];
+    static uint8_t blank[ANKI_FILLIN_PARAS];
+    int count = 0;
+    anki_import_t imp = {0};
+    CHECK(anki_apkg_import(FIX "/fillin-v2.apkg", &imp) == ESP_OK);
+    anki_collection_t col;
+    anki_collection_from_import(&imp, &col);
+    if (imp.card_count == 1) {
+        const anki_card_t* c = &imp.cards[0];
+        CHECK(anki_card_fillin(&col, c));
+        CHECK(anki_render_fillin(&col, c, 0, front, sizeof(front), off, blank,
+                                 ANKI_FILLIN_PARAS, &count) == ESP_OK);
+        CHECK(count == 3);
+        CHECK(blank[0] == 0);  // 标题段没有空条 / the title paragraph has no blank
+        CHECK(blank[1] == 1);
+        CHECK(blank[2] == 1);
+        // 未揭示：出横线，答案一个字都不漏。
+        // Masked: bars appear and not one answer character leaks.
+        CHECK(strstr(front, "＿") != NULL);
+        CHECK(strstr(front, "第一句答案") == NULL);
+        CHECK(strstr(front, "第二句一") == NULL);
+        CHECK(strstr(front, "《测试》") != NULL);
+        // 只揭示第二段：它出答案，第三段仍是横线。
+        // Reveal paragraph 2 only: it prints, paragraph 3 keeps its bars.
+        CHECK(anki_render_fillin(&col, c, 1ull << 1, front, sizeof(front), off, blank,
+                                 ANKI_FILLIN_PARAS, &count) == ESP_OK);
+        CHECK(strstr(front, "第一句答案") != NULL);
+        CHECK(strstr(front, "第二句一") == NULL);
+        CHECK(strstr(front, "＿") != NULL);
+        // 全部揭示：横线消失，每个答案都出现。
+        // Reveal everything: no bars left and every answer shows.
+        CHECK(anki_render_fillin(&col, c, ~0ull, front, sizeof(front), off, blank,
+                                 ANKI_FILLIN_PARAS, &count) == ESP_OK);
+        CHECK(strstr(front, "＿") == NULL);
+        CHECK(strstr(front, "第二句一") != NULL);
+        CHECK(strstr(front, "第二句二") != NULL);
+        CHECK(strstr(front, "第一句答案") != NULL);
+        // 背面仍是普通渲染，走 Back 字段。
+        // The back keeps plain rendering and reads the Back field.
+        static char back[ANKI_CARD_TEXT_MAX];
+        CHECK(anki_render_back(&col, c, front, back, sizeof(back)) == ESP_OK);
+        CHECK(strcmp(back, "背面说明") == 0);
+    }
+    anki_apkg_free(&imp);
+
+    // 普通卡不算填空卡，交互保持原样。
+    // A plain card is not a fill-in card, so its interaction stays unchanged.
+    imp = (anki_import_t){0};
+    CHECK(anki_apkg_import(FIX "/basic-v2.apkg", &imp) == ESP_OK);
+    anki_collection_from_import(&imp, &col);
+    for (int i = 0; i < imp.card_count; ++i) CHECK(!anki_card_fillin(&col, &imp.cards[i]));
+    anki_apkg_free(&imp);
+}
+
+
 // `【题型】题干` + 空行 + 字母选项；背面再加错项反色标记、答案与备注。
 // 模板里只写在 id 属性上的字母与 `<li class="hidden">placeholder</li>` 都不进正文。
 // Choice layout: the front mirrors the back. Front = the meta line (I / J / P
@@ -2681,6 +2741,7 @@ int main(void) {
     test_modern_export();
     test_rejects();
     test_render();
+    test_fillin();
     test_choice_render();
     test_store();
     test_roots();

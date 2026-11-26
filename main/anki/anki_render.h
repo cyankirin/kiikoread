@@ -17,6 +17,9 @@
 #include "esp_err.h"
 
 #define ANKI_CARD_TEXT_MAX (16U * 1024U)
+/// 填空式正面的段落上限（一首诗的行数远小于此）。/ Paragraph cap for the
+/// fill-in front; a poem's line count is far below this.
+#define ANKI_FILLIN_PARAS 64
 
 /// 卡片内容来源：导入结果与已载入卡组共用这一视图。
 /// Card content source: import results and loaded decks share this view.
@@ -39,3 +42,24 @@ esp_err_t anki_render_front(const anki_collection_t* col, const anki_card_t* car
 /// Render the card back (answer); front_text is the rendered front for {{FrontSide}}.
 esp_err_t anki_render_back(const anki_collection_t* col, const anki_card_t* card,
                            const char* front_text, char* out, size_t cap);
+
+/// 是否填空式卡片：字段里带「空条 + 隐藏答案」结构
+/// （`<span class="d" style="width:…em"></span><span class="t">答案</span>`）。
+/// 这类模板在 Anki 里靠 CSS 隐藏答案，纯文本渲染会把答案直接印在正面，所以
+/// 正面改走 anki_render_fillin。
+/// Fill-in card test: the fields carry the "blank bar + hidden answer" pair
+/// used by recall templates. Anki hides the answer with CSS; plain-text
+/// rendering would print it on the front, so such cards use anki_render_fillin.
+bool anki_card_fillin(const anki_collection_t* col, const anki_card_t* card);
+
+/// 填空式正面：逐段输出，reveal_mask 第 n 位为 1 的段落显示答案，其余画空条。
+/// para_off 收到每段在 out 里的起始字节，para_blank 标记该段是否含空条，
+/// para_count 返回段数（不超过 para_cap）。段与段之间以 '\n' 分隔。
+/// Fill-in front: one entry per paragraph. Bit n of reveal_mask shows the nth
+/// paragraph's answers; the rest stay blank bars. para_off receives each
+/// paragraph's byte offset in out, para_blank flags whether it holds a blank,
+/// and para_count returns the paragraph count (bounded by para_cap). Paragraphs
+/// are separated by '\n'.
+esp_err_t anki_render_fillin(const anki_collection_t* col, const anki_card_t* card,
+                             uint64_t reveal_mask, char* out, size_t cap, int* para_off,
+                             uint8_t* para_blank, int para_cap, int* para_count);
