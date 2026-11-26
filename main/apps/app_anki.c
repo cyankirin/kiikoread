@@ -38,6 +38,9 @@
 
 #define ANKI_TITLE "Anki 卡组"
 #define ANKI_DETAIL "Anki 卡片学习 Cards"
+/// 撤销栈深度：够救回误触的一两次评分，又不占多少 PSRAM。
+/// Undo depth: enough to rescue a stray grade or two, tiny in PSRAM.
+#define ANKI_UNDO_MAX 4
 
 #define ROW_H 92
 #define LIST_MAX 96
@@ -68,6 +71,13 @@ typedef struct {
 } anki_lists_t;
 
 typedef struct {
+    int index;           ///< 卡片下标 / card index
+    int pos;             ///< 评分前的会话游标 / session cursor before grading
+    int studied, again, good_or_better;
+    anki_card_t card;    ///< 评分前的调度状态快照 / pre-grade schedule snapshot
+} anki_undo_t;
+
+typedef struct {
     bool active;
     anki_deck_t deck;
     int session[ANKI_SESSION_MAX];
@@ -75,6 +85,11 @@ typedef struct {
     int session_pos;
     bool show_back;
     bool back_loaded;
+    // 撤销栈：只留最近几次评分，评分前把卡片调度字段整份存下来，撤销即写回。
+    // Undo stack: keep the last few grades, with the card's schedule fields
+    // copied before grading so undo can write them straight back.
+    anki_undo_t undo[ANKI_UNDO_MAX];
+    int undo_count;
     // 填空式正面：段落起点与「是否含空条」，揭示状态按段落位图记在本张卡上。
     // Fill-in front: paragraph offsets, per-paragraph blank flags, and the
     // per-card reveal bitmap (reset when a new card opens).
@@ -540,6 +555,7 @@ static void session_start(int deck_index) {
                                      SESS()->session_count, 0, 0, 0, 0);
     }
     SESS()->active = true;
+    SESS()->undo_count = 0;  // 新会话从空撤销栈开始 / a new session starts with no undo
     // 整库已载入：这里是 Anki 页内存占用的峰值点位。
     // The whole deck is loaded: this is the Anki page's memory peak.
     anki_heap_log("anki study enter");
@@ -575,6 +591,7 @@ static void session_release(void) {
     SESS()->active = false;
     SESS()->session_count = 0;
     SESS()->session_pos = 0;
+    SESS()->undo_count = 0;  // 卡表已释放，撤销快照不能再写回 / card table gone: drop undo
     SESS()->show_back = false;
     SESS()->back_loaded = false;
     SESS()->front[0] = 0;
@@ -604,6 +621,21 @@ static void session_next(void) {
 static void session_grade(anki_grade_t grade) {
     if (s_view != ANKI_VIEW_STUDY || !SESS()->show_back) return;
     int index = SESS()->session[SESS()->session_pos];
+    // 评分前留快照：撤销时把调度字段与游标、计数一起放回去。
+    // Snapshot before grading so undo can put the schedule fields, the cursor
+    // and the counters back exactly as they were.
+    if (SESS()->undo_count == ANKI_UNDO_MAX) {
+        memmove(&SESS()->undo[0], &SESS()->undo[1],
+                sizeof(SESS()->undo[0]) * (size_t)(ANKI_UNDO_MAX - 1));
+        --SESS()->undo_count;
+    }
+    anki_undo_t* u = &SESS()->undo[SESS()->undo_count++];
+    u->index = index;
+    u->pos = SESS()->session_pos;
+    u->studied = SESS()->studied;
+    u->again = SESS()->again;
+    u->good_or_better = SESS()->good_or_better;
+    memcpy(&u->card, &SESS()->deck.cards[index], sizeof(u->card));
     anki_schedule(&SESS()->deck, index, grade);
     // 进度写回失败（如学习途中拔出 TF 卡）不打断会话：卡组已在内存里，
     // 本次评分照常继续，落盘等下次保存重试。/ A failed progress write (the
@@ -628,6 +660,44 @@ static void session_grade(anki_grade_t grade) {
         }
     }
     session_next();
+}
+
+/// 撤销上一次评分：卡片调度字段、会话游标与计数一起回退，并重新落盘。
+/// 只回退评分本身，不动当天日基准；仍能再撤销更早的一次（最多 ANKI_UNDO_MAX）。
+/// Undo the last grade: the card's schedule fields, the session cursor and the
+/// counters all roll back and are written again. Only the grade is undone — the
+/// day baseline stays put — and earlier grades stay undoable up to the depth.
+static bool session_undo(void) {
+    if (!SESS()->active || SESS()->undo_count <= 0) return false;
+    if (s_view != ANKI_VIEW_STUDY && s_view != ANKI_VIEW_SUMMARY) return false;
+    const anki_undo_t* u = &SESS()->undo[SESS()->undo_count - 1];
+    memcpy(&SESS()->deck.cards[u->index], &u->card, sizeof(u->card));
+    (void)anki_store_save_card(&SESS()->deck, u->index);
+    SESS()->session_pos = u->pos;
+    SESS()->studied = u->studied;
+    SESS()->again = u->again;
+    SESS()->good_or_better = u->good_or_better;
+    --SESS()->undo_count;
+    // 小结页撤销要回到学习页：游标回到最后一张，续学状态跟着写回去。
+    // Undoing from the summary returns to the study page: the cursor goes back
+    // to the last card and the resume state is written along with it.
+    (void)anki_store_resume_save(&SESS()->deck, SESS()->session, SESS()->session_count,
+                                 SESS()->session_pos, SESS()->studied, SESS()->again,
+                                 SESS()->good_or_better);
+    s_view = ANKI_VIEW_STUDY;
+    // 回到这张卡的背面（答案已看过），评一次钮就再判；背面内容按当前游标重渲染，
+    // 连撤两次也不会拿到上一张卡的旧背面。
+    // Return to this card's back (the answer has been seen) so a button press
+    // grades again; the back is re-rendered from the cursor, so a second undo
+    // never shows the previous card's stale back.
+    SESS()->show_back = true;
+    SESS()->back_loaded = false;
+    session_load_back();
+    SESS()->layout.text = SESS()->back;
+    SESS()->layout.show_back = true;
+    SESS()->layout.band = study_band();
+    anki_layout_run(&SESS()->layout, ui_text_effective_px(UI_PX_BODY));
+    return true;
 }
 
 // ---------------------------------------------------------------- 绘制
@@ -833,14 +903,19 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
                         EPD_DRAW_ALIGN_LEFT, false);
             }
             if (!SESS()->show_back) {
-                // 填空卡：轻点即揭示该段，底部提示说清这条交互。
-                // Fill-in cards: a tap reveals that paragraph, so the hint has
-                // to say so.
-                const char* hint;
+                // 填空卡：轻点即揭示该段，底部提示说清这条交互；撤销可用时一并
+                // 交代长按左键，省得用户猜。
+                // Fill-in cards: a tap reveals that paragraph. The hint spells
+                // both that and the long-press undo, so nothing has to be guessed.
+                char hint[64];
                 if (SESS()->fillin) {
-                    hint = pages > 1 ? "点行显字 · 滑动翻页 · 中键答案" : "点行显字 · 中键看答案";
+                    snprintf(hint, sizeof(hint), "%s",
+                             pages > 1 ? "点行显字 · 滑动翻页 · 长按撤销"
+                                       : "点行显字 · 长按左键撤销");
                 } else {
-                    hint = pages > 1 ? "上下滑翻页 · 轻点或中键翻面" : "轻点或按中键翻面";
+                    snprintf(hint, sizeof(hint), "%s",
+                             pages > 1 ? "上下滑翻页 · 轻点翻面 · 长按撤销"
+                                       : "轻点或中键翻面 · 长按撤销");
                 }
                 ui_text(fb, UI_MARGIN, UI_CONTENT_BOTTOM - UI_PX_CAPTION - 6, UI_PX_CAPTION, hint,
                         EPD_DRAW_ALIGN_LEFT, false);
@@ -871,6 +946,8 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
             const int summary_gap = anki_layout_pitch(ui_text_effective_px(UI_PX_BODY), "");
             ui_text(fb, UI_MARGIN, UI_CONTENT_TOP + 40 + summary_gap, UI_PX_BODY, line,
                     EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, UI_MARGIN, UI_CONTENT_TOP + 40 + 2 * summary_gap, UI_PX_CAPTION,
+                    "长按左键撤销上一次 · 长按中键结束", EPD_DRAW_ALIGN_LEFT, false);
             ui_draw_button(fb, bar_button_rect(), "返回卡组 Back", false);
             ui_draw_menu_handle(fb, false);
             break;
@@ -1239,6 +1316,14 @@ static app_redraw_t on_key(app_ctx_t* ctx, int key) {
 
 static app_redraw_t on_key_long(app_ctx_t* ctx, int key) {
     (void)ctx;
+    // 长按左键撤销上一次评分（学习页与小结页都可用）。写到盘上的进度会跟着
+    // 回退，所以误触评分不用重学一遍。
+    // Long-press the left key undoes the last grade (study or summary). The
+    // on-disk progress rolls back with it, so a stray grade need not be relearned.
+    if (key == UI_KEY_1 && session_undo()) {
+        message_set("已撤销上一次评分");
+        return APP_REDRAW_FULL;
+    }
     if (key == UI_KEY_2 && (s_view == ANKI_VIEW_STUDY || s_view == ANKI_VIEW_SUMMARY)) {
         // 长按中键结束本组。/ Long-press middle ends the session.
         session_end();

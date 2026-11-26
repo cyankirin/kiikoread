@@ -57,6 +57,7 @@ on-device; no Anki runtime, network or PC is required.
 | 轻点背面评分钮 / tap a grade button | 记录评分并进入下一张 / grade and advance |
 | 中键（KEY2）/ middle key | 翻面；小结页确认返回 / flip; confirm on the summary |
 | 长按中键 / long-press middle | 结束本组学习 / end the session |
+| 长按左键 / long-press left | 撤销上一次评分（学习页与小结页都可用）/ undo the last grade |
 | 左键（KEY1）/ left key | 逐级返回 / step back |
 | 右键（KEY3）/ right key | 打开菜单 / open the menu |
 | 上下滑 / swipe up or down | 长卡片在内翻页 / page within a long card |
@@ -117,6 +118,21 @@ tap reveals exactly the paragraph that was tapped.
   Only notes carrying `class="d"`, `class="t"` and `width:` together take this
   path; every other deck is unchanged and the back keeps plain rendering.
 
+
+### 撤销评分 / Undo
+
+评分前把这张卡的调度字段（`type`/`queue`/`due`/`ivl`/`factor`/`reps`/`lapses`）连同
+会话游标与「已学 / 忘记 / 记住」计数一起存进撤销栈，栈深 4。**长按左键**回退一格：
+卡片字段写回内存并按原位置重新落盘，游标退回该卡，续学状态同步覆盖写；小结页上
+撤销会回到学习页该卡背面，可直接重新评分。只回退评分本身，不动当天日基准。
+
+Before grading, the card's schedule fields (`type`/`queue`/`due`/`ivl`/`factor`/
+`reps`/`lapses`), the session cursor and the studied/again/remembered counters
+are pushed onto an undo stack of depth 4. **Long-press the left key** rolls back
+one step: the fields are restored in memory and patched back to the same spot on
+disk, the cursor returns to that card and the resume state is overwritten
+accordingly. Undoing from the summary page returns to that card's back, ready
+for another grade. Only the grade rolls back; the day baseline is untouched.
 
 ## 实现位置 / Implementation map
 
