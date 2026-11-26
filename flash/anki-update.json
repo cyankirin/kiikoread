@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "0.3.3-rc110.02",
+  "version": "0.3.3-rc110.03",
   "project": "Read_Pico",
   "board": "RDP-G01-W",
   "layout": "pico-dual-4m-v1",
   "minimum_base_version": "0.3.3-rc72",
-  "url": "https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc110.02.bin",
-  "size": 3491888,
-  "sha256": "ab39a97aeb3112383b77e2353041bfa67eba77debed14de21db6810a276dec30",
-  "notes": "修复设置首页与各二级页下方总是多出「显示」分组一整块、同一处重复绘制还让「显示」二级页滚动后出现重复行（主页刷新模式、首页强刷连排两遍）。"
+  "url": "https://cyankirin.github.io/kiikoread/Pico-anki-0.3.3-rc110.03.bin",
+  "size": 3499136,
+  "sha256": "b1dae3f21b62d6db04034d72974927032fa037801ae65f19eebc1c3813c46c15",
+  "notes": "在官方 RC110 基线上，逐句回想类填空卡（如「高考必背 60 篇」）正面只出横线，点哪行揭示哪段；修复卡内图片占位 [图片] 之前被截成 [图（按 4 字节截断，实际 UTF-8 是 5 字节），导入提示与正面占位都受影响。"
 }
