@@ -313,8 +313,12 @@ static esp_err_t html_to_text(const char* html, size_t len, char* out, size_t ca
         const char* piece;
         size_t piece_len;
         if (block->image >= 0) {
+            // 占位串必须按字节数给：UTF-8 里“图”占 3 字节，写成 4 会把占位截成
+            // “[图”，既少了收尾括号，也留下半个字符。
+            // The placeholder length is in bytes: “图” takes 3 bytes in UTF-8, so a
+            // 4-byte length truncates it to “[图” and drops the closing bracket.
             piece = "[图片]";
-            piece_len = 4;
+            piece_len = strlen(piece);
         } else {
             piece = text.utf8 + block->offset;
             piece_len = block->len;
